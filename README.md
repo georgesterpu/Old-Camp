@@ -45,6 +45,17 @@ resolution, mipmaps, and anisotropic filtering. High graphics uses native displa
 (up to 2× device pixel ratio), antialiasing, surface relief, and detailed shadows. Balanced reduces
 effects for slower machines. No pixel-art or nearest-neighbour texture filter is used.
 
+## Character appearances
+
+Residents have stable individual complexions, face and nose shapes, haircuts, hair colours,
+facial hair, builds, and role-specific outfits. Repeated guards have different features.
+
+Choose **Customise your character** on the title screen, or **Appearance** in the camp.
+Use the lit preview to rotate your character and switch between face detail and the full
+outfit. Choose a look, randomise it, or return to the original hero. **Save appearance**
+keeps it with your journey, including exported saves; **Cancel / Esc** discards edits.
+Older saves receive the original hero's appearance. Starting a new journey keeps your look.
+
 ## A first adventure
 
 1. Find **Diego**, west of the entrance lane. Recover three ore nuggets and earn admission

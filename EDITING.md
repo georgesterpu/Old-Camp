@@ -35,6 +35,8 @@ for playing the built game. Normal editing and building require Bun only.
 | `src/terrain.ts` | Ground elevation, mountains, bridge walking height, grass |
 | `src/wilderness.ts` | Forest, river, mine, ruins, shrine, and landmark locations |
 | `src/characters.ts` | Human meshes, clothing, skeleton, poses, and swords |
+| `src/appearance.ts` | Appearance choices, palettes, and stable resident identities |
+| `src/customization.ts` | Hero appearance controls and the isolated preview scene |
 | `src/wildlife.ts` | Ravens, deer, hares, butterflies, and their behavior |
 | `src/sword.ts` | Strike timing, recovery, energy, and guarding |
 | `src/expedition.ts` | Quest items, herbs, hammer, and waymarkers |
@@ -64,7 +66,9 @@ used by `scripts/prepare-human.py` to regenerate `assets/human.json` from the
 original OBJ. It is not needed for ordinary game changes.
 
 The browser regression scripts require a separate Chrome DevTools session on
-port 9223; `bun test` does not. Launch test browsers with `--mute-audio`.
+port 9223; `bun test` does not. Run `node scripts/appearance-browser-test.mjs`
+with an offline game tab opened using `?qa&still` to check customization.
+Launch test browsers with `--mute-audio`.
 
 ## Saves, assets, and credits
 
