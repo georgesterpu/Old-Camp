@@ -43,6 +43,9 @@ for playing the built game. Normal editing and building require Bun only.
 | `src/valley-combat.ts` | Enemy archetypes, group tactics, parries, dodges and repeatable watch waves |
 | `src/colony-game.ts` | Chapter II actors, resource sites, routines, consequences, HUD and map tracking |
 | `src/camp-ledger.ts`, `src/colony.css` | Pack, services, camp affairs, field notes and accessibility controls |
+| `src/campaign.ts`, `src/campaign-screen.ts` | Campaign statistics, immutable endings and failure/results UI |
+| `src/campaign-guide.ts`, `src/menu-controller.ts` | Existing campaign dependencies, next actions and controller menu focus |
+| `src/storage.ts`, `src/preferences.ts`, `src/boot.ts` | Validated save backup, persistent preferences and graphics failure recovery |
 | `src/expedition.ts` | Quest items, herbs, hammer, and waymarkers |
 | `src/index.html` | Menus, HUD, journal, map panel, and styling |
 | `src/audio.ts`, `src/music.ts` | Synthesized ambience, effects, and original score |
@@ -64,8 +67,9 @@ bun run build
 Do not edit either generated file; change `src/` and rebuild.
 
 Optional: install Python 3 to use `bun run package` for the Windows sharing ZIP
-or `bun run package:source` for another source archive. These scripts invoke
-`python`; use `python scripts/package.py` directly if preferred. Python is also
+or `bun run package:source` for another source archive. The packaging wrapper finds Python on PATH, through `PYTHON`, the Windows launcher,
+or an already-installed uv interpreter; it never downloads one. You can also run
+`python scripts/package.py` directly. Python is also
 used by `scripts/prepare-human.py` to regenerate `assets/human.json` from the
 original OBJ. It is not needed for ordinary game changes.
 
@@ -73,6 +77,12 @@ The browser regression scripts require a separate Chrome DevTools session on
 port 9223; `bun test` does not. Run `node scripts/appearance-browser-test.mjs`
 with an offline game tab opened using `?qa&still` to check customization.
 Launch test browsers with `--mute-audio`.
+
+Run `node scripts/campaign-browser-test.mjs` for the full three-chapter campaign
+from a new journey. It accelerates travel but earns resources, gear and progress through
+actual actions, then checks the ending, failure/reload, backup recovery and controller UI.
+The package browser test accepts an optional file URL; by default it opens the extracted
+`.cache/package-check/Play Old Camp.html` with external network URLs blocked.
 
 Run `node scripts/escalation-browser-test.mjs` for the third chapter: real signal repairs,
 beacon defense through ordinary strikes, direct services, both charters, saves and mobile UI.

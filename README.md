@@ -4,11 +4,50 @@ An offline Gothic-inspired exploration game: a working camp, a much larger wild 
 textured human characters, photographed surfaces, original music, and peaceful wildlife.
 An unofficial tribute; no original Gothic game data is required or distributed.
 
-## Alpha III: The Last Light
+## Release Candidate 1: A Place Worth Keeping
+
+The existing three chapters now form a campaign with a definite ending:
+earn admission and a blade → prepare the camp → decide the mine → defend the signal
+road → choose the road charter with Grim. That final charter triggers **Campaign complete**,
+an epilogue and a frozen results summary. There is no fourth chapter or new region.
+
+Refresh **old-camp.html** and check for **RELEASE CANDIDATE 1**. Existing journeys continue;
+an already-completed Alpha III journey receives its ending on the next entry. Its action
+counts are labelled as recorded from this update onward, since older builds did not track them.
+
+- The ending records the mine and road outcomes, active play time, foes driven off,
+  gathered materials, crafted supplies, deliveries, rescues, caches and remaining ore.
+  Menus and resting do not add to active play time. Postgame cannot overwrite the ending.
+- **Defeat** and **defense lost** have explicit recovery screens. Defeat costs a little
+  ore and gear condition, returns you with 65 health, and keeps campaign progress.
+  A lost beacon can be retried without restoring the whole signal network.
+- The pack shows all five campaign milestones, missing materials and one next-route button.
+  Completed mine management cards disappear from the main camp flow. Daily stores are
+  repeatable support activities; depleted stocks do not undo expedition preparation.
+- After the ending, the optional **keeper’s watch** asks for one successful ruined-watch
+  defense. Existing later defenses grow harder. To try different outcomes, continue to
+  the journal and choose **Start a new journey**; appearance and accessibility choices stay.
+- Local saves receive the same validation as imported saves. A previous valid save is
+  kept as a backup and recovered automatically if the primary is damaged. Graphics,
+  master mute and music preferences survive reloads. If graphics startup fails, a recovery
+  screen offers reload and download of the last valid local save.
+- Controller menus use D-pad / left stick for focus, **A** to activate, **B** to return,
+  **LB/RB** for pack tabs, and left/right to edit appearance choices. Keyboard focus stays
+  inside the active menu. A mouse click may still be required by the browser to unlock audio.
+
+The Windows sharing ZIP contains the standalone game, instructions, credits and a build
+manifest with the HTML hash. Export your journey before moving the file to a new folder.
+
+**Release status:** RC1 is a testable closure build. The 1–3 hour campaign length is a
+playtest target, not a measured promise. The automated full-campaign run accelerates
+travel and does not establish natural pacing, physical-controller feel or gaming-GPU
+performance. See [release verification](docs/rc1-verification.md).
+
+## Chapter III: The Last Light
 
 The mine decision now leads into a third chapter with a personal stake: Grim’s sister
 Mara is on the next ore cart, and displaced levy men are cutting the signal road.
-Refresh **old-camp.html** and check for **ALPHA III · THE LAST LIGHT**.
+This chapter remains the final pressure event in the release-candidate campaign.
 
 **Continue an existing journey:** after either mine resolution, talk to **Grim** and
 choose his **Chapter III** conversation. Existing saves and portable Alpha II exports
@@ -188,11 +227,12 @@ bun run dev
 Open http://127.0.0.1:4317/ for the local preview. Stop it with **Ctrl+C**.
 Rebuild after editing source files; the preview reloads after a successful build.
 Builds replace files atomically. `bun run package` rebuilds the Windows sharing ZIP.
-Packaging scripts require Python 3; ordinary development requires Bun only.
+Packaging requires Python 3; the wrapper finds PATH, PYTHON, the Windows launcher or an existing uv interpreter. Ordinary development requires Bun only.
 
 The browser regression scripts connect to a local Chrome DevTools endpoint on port 9223:
 `browser-test.mjs`, `expedition-browser-test.mjs`, `controls-browser-test.mjs`,
-`appearance-browser-test.mjs`, `colony-browser-test.mjs`, and `package-browser-test.mjs`.
+`appearance-browser-test.mjs`, `colony-browser-test.mjs`, `escalation-browser-test.mjs`,
+`campaign-browser-test.mjs`, and `package-browser-test.mjs`.
 Open the game with `?qa` for the test hooks, or `?qa&still` for single-frame inspection.
 QA hooks are absent during a normal launch. Test browsers should use `--mute-audio`.
 

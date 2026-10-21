@@ -1,0 +1,25 @@
+import {endingCopy,playTime,postgameWatchComplete} from './campaign';
+import type {ColonySave} from './colony';
+interface Context {state:()=>ColonySave;open:()=>void;close:()=>void;continue:()=>void;retry:()=>void;watch:()=>void;export:()=>void}
+const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+export function createCampaignScreen(ctx:Context){
+ const overlay=document.createElement('section');overlay.id='campaign-result';overlay.className='hidden';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','result-title');
+ document.body.append(overlay);let opened=false,kind:'victory'|'defeat'|'signal'='victory';
+ function show(value:typeof kind){
+  const s=ctx.state(),e=s.campaign.ending;if(value==='victory'&&!e)return;kind=value;opened=true;ctx.open();overlay.classList.remove('hidden');
+  let content='';
+  if(value==='victory'&&e){const copy=endingCopy(e);content=`<div class="kicker">THE OLD CAMP · CAMPAIGN COMPLETE</div><h2 id="result-title">${copy.title}</h2><p class="result-story">${esc(copy.text)}</p><div class="result-decisions"><span>Mine: ${e.mine==='opened'?'Reopened for the diggers':'Sealed by the watch'}</span><span>Road: ${e.charter==='commons'?'Commons charter':'Watch charter'}</span></div><dl class="result-stats">${[
+   ['Active play',playTime(e.stats.seconds)],['Foes driven off',String(e.stats.foes)],['Materials gathered',String(e.stats.gathered)],['Supplies prepared',String(e.stats.crafted)],['Camp deliveries',String(e.stats.contracts)],['Times rescued',String(e.stats.rescues)],['Lore caches',`${e.caches} / 3`],['Ore at the ending',String(e.ore)]
+  ].map(([label,value])=>`<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>${e.partial?'<p class="result-note">This journey began in an earlier build. Action counts and play time were recorded from the release-candidate update onward.</p>':''}<p class="result-note">Your campaign is complete. Continuing opens the postgame and keeps this ending intact. Optional afterword: ${postgameWatchComplete(s)?'the keeper’s watch is already defended.':'defend the ruined watch once after the ending.'}</p><div class="result-actions"><button class="enter" data-result="continue" data-result-continue>Continue into postgame</button><button class="small" data-result="watch">${postgameWatchComplete(s)?'Revisit':'Track'} the keeper’s watch</button><button class="small" data-result="export">Export completed journey</button></div>`}
+  else{const failure=s.campaign.failure;content=`<div class="kicker">${value==='defeat'?'DEFEAT · THE WATCH BRINGS YOU HOME':'DEFENSE LOST · THE LIGHT WENT DARK'}</div><h2 id="result-title">${value==='defeat'?'A second chance':'The caravan waits'}</h2><p class="result-story">${value==='defeat'?`The watch carried you back to the north gate. You lost ${failure?.oreLost??0} ore and your gear took damage. You have 65 health; your quest items, repaired signals and campaign choices are safe.`:'The beacon fell or you withdrew from the defense. The caravan has taken shelter. Your three repaired signals are safe; relight the high-road beacon when you are ready.'}</p><p class="result-note">${value==='defeat'?'Rest at Snaf’s fire or use a salve, repair worn gear at Huno’s forge, then return to your objective.':'A retry restores the beacon and the levy crew. Bring healing supplies and timber plus iron for emergency repairs.'}</p><div class="result-actions"><button class="enter" data-result="continue" data-result-continue>${value==='defeat'?'Continue at the north gate':'Continue preparing'}</button>${value==='signal'?'<button class="small" data-result="retry">Retry here / track the beacon</button>':''}<button class="small" data-result="export">Export journey</button></div>`}
+  overlay.innerHTML=`<div class="result-shell">${content}<p class="result-note result-controls">Keyboard: Tab / Enter · Controller: D-pad / A · Esc or B continues</p></div>`;
+  overlay.querySelector<HTMLButtonElement>('[data-result-continue]')!.focus();
+ }
+ function close(){opened=false;overlay.classList.add('hidden');ctx.close()}
+ overlay.addEventListener('click',event=>{const action=(event.target as HTMLElement).closest<HTMLElement>('[data-result]')?.dataset.result;if(!action)return;if(action==='export'){ctx.export();return}close();if(action==='retry')ctx.retry();else if(action==='watch')ctx.watch();else ctx.continue()});
+ overlay.addEventListener('keydown',event=>{
+  if(event.code==='Escape'){event.preventDefault();event.stopPropagation();overlay.querySelector<HTMLButtonElement>('[data-result-continue]')!.click()}
+  if(event.code==='Tab'){const list=[...overlay.querySelectorAll<HTMLButtonElement>('button')],first=list[0],last=list[list.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
+ });
+ return {show,close,get isOpen(){return opened},get kind(){return kind}};
+}

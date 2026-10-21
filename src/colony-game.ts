@@ -4,13 +4,15 @@ import {createCampLedger} from './camp-ledger';
 import {freshColony,normalizeColony,resourceNames,weaponProfiles,gatheringSites,siteAvailable,gather,currentObjective,dayOf,hourOf,timeLabel,advanceColony,DAY_SECONDS,contribute,craft,canPay,pay,addResource,price,useSupply,resolveMine,rescue,logEvent,rumor,type ColonySave,type Resource,type WeaponClass} from './colony';
 import {ValleyCombat,enemyDefinitions,enemyProfiles,type Enemy,type CombatEvent} from './valley-combat';
 import {signalSites,signalCover,lastLight,beginCrisis,repairSignal,patchBeacon,settleCharter,crisisRumor} from './escalation';
+import {recordStat,finishCampaign,postgameWatchComplete} from './campaign';
+import {campaignGuide} from './campaign-guide';
 import {terrainHeight,walkHeight} from './terrain';
 import type {Person} from './world';
 import type {SurfaceSet} from './surfaces';
 import type {SwordHandling} from './sword';
 interface Context {
  scene:Scene;surfaces:SurfaceSet;hero:Person;people:Person[];sun:DirectionalLight;hemi:HemisphericLight;software:boolean;initial:unknown;
- progress:()=>{stage:number;weapon:boolean;ore:number};ore:(amount:number)=>void;changed:()=>void;persist:()=>void;
+ progress:()=>{stage:number;weapon:boolean;ore:number;smith?:number};looseOre:()=>{x:number;z:number}[];ore:(amount:number)=>void;changed:()=>void;persist:()=>void;result:(review?:boolean)=>void;
  notify:(title:string,text?:string)=>void;open:()=>void;close:()=>void;rescue:()=>void;impact:(hurt:boolean)=>void;
  audio:(kind:'hit'|'block'|'swing')=>void;blocked:(x:number,z:number)=>boolean;viewWeapon:TransformNode;
 }
@@ -73,10 +75,10 @@ export function createColonyGame(ctx:Context){
  const mineSign=MeshBuilder.CreatePlane('mine outcome notice',{width:2.8,height:.65,sideOrientation:Mesh.DOUBLESIDE},scene);mineSign.position.set(-108,terrainHeight(-108,72)+1.6,72);mineSign.rotation.y=Math.PI;mineSign.isPickable=false;
  const signTexture=new DynamicTexture('mine future lettering',{width:512,height:128},scene,false);const signMat=mat('mine future sign','#ffffff');signMat.diffuseTexture=signTexture;mineSign.material=signMat;let shownOutcome='';
  const hud=document.createElement('div');hud.id='colony-hud';hud.innerHTML='<div id="colony-clock"></div><div id="colony-tracker"></div><div id="colony-health"></div><div id="colony-enemy" aria-live="polite"></div>';document.getElementById('hud')!.append(hud);
- const stamp=document.createElement('p');stamp.className='alpha-stamp';stamp.textContent='ALPHA III · THE LAST LIGHT';document.querySelector('#start-screen .menu')!.prepend(stamp);
+ const stamp=document.createElement('p');stamp.className='alpha-stamp';stamp.textContent='RELEASE CANDIDATE 1 · A PLACE WORTH KEEPING';document.querySelector('#start-screen .menu')!.prepend(stamp);
  document.querySelector('#map-panel p')!.textContent='◆ You · ◇ Ore · ● People · ■ Discovered supplies · red: known threats · gold ring: tracked destination';
  const flash=document.createElement('div');flash.id='impact-flash';document.body.append(flash);let flashAge=0;
- const ledger=createCampLedger({state:()=>state,ore:()=>ctx.progress().ore,stage:()=>ctx.progress().stage,hasWeapon:()=>ctx.progress().weapon,nearby:nearestNames,act:action,close:()=>close()});
+ const ledger=createCampLedger({state:()=>state,ore:()=>ctx.progress().ore,stage:()=>ctx.progress().stage,hasWeapon:()=>ctx.progress().weapon,nearby:nearestNames,guide:()=>campaignGuide(state,ctx.progress()),act:action,close:()=>close()});
  function commit(text:string){ctx.changed();ctx.persist();return text}
  function quickChoices(name:string){
   const s=state,p=ctx.progress(),list:{text:string;what:string;arg?:string}[]=[];
@@ -105,9 +107,11 @@ export function createColonyGame(ctx:Context){
   if(s.trade.day!==dayOf(s))s.trade={day:dayOf(s)};
   const spend=(ore:number,resources:Partial<Record<Resource,number>>)=>{if(progress.ore<ore||!canPay(s,resources))return false;pay(s,resources);ctx.ore(-ore);return true};
   if(what==='use'){if(arg!=='salve'&&arg!=='ration')return 'Unknown supply.';message=useSupply(s,arg)?'Health restored.':'You need that supply and a wound to treat.'}
+  else if(what==='results'){if(!s.campaign.ending)return 'The campaign ends when you choose the road charter with Grim.';ctx.result(true);return 'Campaign ending recalled.'}
+  else if(what==='guide'){const guide=campaignGuide(s,progress);return action('track',guide.route)}
   else if(what==='equip'){if(!progress.weapon||!s.weapons.includes(arg as WeaponClass))return 'Earn or forge this weapon first.';s.equipped=arg as WeaponClass;message=`Equipped ${weaponProfiles[s.equipped].label}.`}
   else if(what==='crisis'){if(need('Grim'))return need('Grim');if(!beginCrisis(s))return 'Resolve the mine first. Grim’s signal mission can only begin once.';tracked=null;message='Chapter III · The Last Light. Restore three signals: 1 timber + 1 iron each.'}
-  else if(what==='charter'){if(need('Grim'))return need('Grim');if(arg!=='commons'&&arg!=='watch')return 'Choose the commons or the watch.';if(!settleCharter(s,arg))return 'Bring the caravan through first. The road charter can only be awarded once.';ctx.ore(25);tracked=null;message='A way home · +25 ore. Mara is safe beside Grim’s fire. Your road charter will shape every new shift.'}
+  else if(what==='charter'){if(need('Grim'))return need('Grim');if(arg!=='commons'&&arg!=='watch')return 'Choose the commons or the watch.';if(!settleCharter(s,arg))return 'Bring the caravan through first. The road charter can only be awarded once.';ctx.ore(25);finishCampaign(s,ctx.progress().ore);ctx.result();tracked=null;message='A way home · +25 ore. Mara is safe beside Grim’s fire. Your road charter will shape every new shift.'}
   else if(what==='begin'){if(need('Diego'))return need('Diego');if(progress.stage<3||!progress.weapon)return 'Earn castle admission and Huno’s blade first.';if(s.active)return 'The expedition is already underway.';s.active=true;logEvent(s,'Diego asks you to prepare food, tools and a watch. The old mine’s future is now in your hands.');message='A mine worth fighting for · chapter II begun.'}
   else if(what==='buy'){
    if(need('Fisk'))return need('Fisk');const base={ration:2,salve:4,iron:3,wood:2}[arg as 'ration'];if(base===undefined)return 'This supply is not for sale.';const key=`buy-${arg}`,cost=price(s,base);if((s.trade[key]??0)>=4)return 'Sold out until the next shift.';if(!spend(cost,{}))return `Need ${cost} ore.`;addResource(s,arg as Resource,1);s.trade[key]=(s.trade[key]??0)+1;message=`Bought ${resourceNames[arg as Resource]} · −${cost} ore.`;
@@ -147,6 +151,10 @@ export function createColonyGame(ctx:Context){
  }
  function target(){
   if(state.crisis.stage==='assault')return {...lastLight,label:`Last light · ${Math.ceil(state.crisis.integrity)}% integrity`};
+  if(tracked==='mine')return {x:-128,z:96,label:'Old mine · overseer’s crew'};
+  if(tracked==='hammer')return {x:-112,z:79,label:'Old workings · Huno’s hammer'};
+  if(tracked==='ore'){const ore=ctx.looseOre().sort((a,b)=>Math.hypot(a.x-hero.root.position.x,a.z-hero.root.position.z)-Math.hypot(b.x-hero.root.position.x,b.z-hero.root.position.z))[0];if(ore)return {...ore,label:'Loose ore nugget'};tracked=null}
+  const signal=signals.find(site=>site.id===tracked);if(signal)return {x:signal.x,z:signal.z,label:signal.label};
   if(tracked){const person=people.find(p=>p.name===tracked);if(person)return {x:person.root.position.x,z:person.root.position.z,label:person.name};const site=sites.find(s=>s.id===tracked);if(site)return {x:site.x,z:site.z,label:site.label};if(tracked==='road')return {x:-27,z:-97,label:'The road levy'}}
   const obj=currentObjective(state,ctx.progress().stage,ctx.progress().weapon);if(!obj)return null;
   // Schedule changes never leave a destination marker pointing at an empty home.
@@ -174,6 +182,8 @@ export function createColonyGame(ctx:Context){
   }};
  }
  function events(list:CombatEvent[]){for(const event of list){
+  if(event.kind==='defeat')recordStat(state,'foes');
+  if(event.kind==='clear'&&event.text.startsWith('Signal lost')){state.campaign.failure={kind:'signal',oreLost:0};ctx.result()}
   if(event.ore)ctx.ore(event.ore);
   if(event.kind==='hurt'){ctx.audio('hit');ctx.impact(true);flashAge=.28}
   else if(event.kind==='hit'||event.kind==='defeat'){ctx.audio('hit');ctx.impact(false)}
@@ -181,12 +191,14 @@ export function createColonyGame(ctx:Context){
   ctx.notify(event.text,event.kind==='defeat'?'The crew is driven off. Wounds and defeats persist with your save.':'');
  }if(list.length){ctx.changed();ctx.persist()}}
  function update(dt:number,yaw:number,sword:SwordHandling,practice=false){
+  recordStat(state,'seconds',Math.min(.5,Math.max(0,dt)));
+  if(finishCampaign(state,ctx.progress().ore)){ctx.changed();ctx.persist();ctx.result()}
   if(restoreEnergy){sword.energy=1;sword.draw(false);restoreEnergy=false}
   worldTime+=dt;for(const s of signals){s.flame.scaling.y=1.6+Math.sin(worldTime*8+s.x)*.15;s.flame.rotation.y=worldTime*.7}const oldDay=dayOf(state);advanceColony(state,dt);if(dayOf(state)!==oldDay){state.trade={day:dayOf(state)};refreshWorld();ctx.changed();ctx.persist()}
   sword.weaponClass=practice?'sword':state.equipped;styleWeapon(hero.weapon!,practice?'sword':state.equipped,scene);styleWeapon(ctx.viewWeapon,practice?'sword':state.equipped,scene);
   combat.sync();for(const e of combat.enemies)if(e.enabled&&e.health>0&&ctx.blocked(e.x,e.z)){const p=safePoint(e.x,e.z);e.x=p.x;e.z=p.z}
   if(!practice){const results:CombatEvent[]=[];for(let remaining=Math.min(dt,.5);remaining>0&&state.health>0;){const slice=Math.min(remaining,1/60);remaining-=slice;results.push(...combat.update(slice,{x:hero.root.position.x,z:hero.root.position.z,yaw},sword,ctx.blocked))}events(results)}
-  if(state.health<=0){ctx.ore(-rescue(state,ctx.progress().ore));ctx.rescue();for(const e of combat.enemies){e.aggro=false;e.mode=e.health>0?'idle':'down';e.timer=1}ctx.notify('The watch brings you home','Quest items are safe. Eat, rest, or use a salve; repair damaged gear at Huno’s forge.');ctx.changed();ctx.persist()}
+  if(state.health<=0){const lost=rescue(state,ctx.progress().ore);state.campaign.failure={kind:'defeat',oreLost:lost};ctx.ore(-lost);ctx.rescue();ctx.result();for(const e of combat.enemies){e.aggro=false;e.mode=e.health>0?'idle':'down';e.timer=1}ctx.notify('The watch brings you home','Quest items are safe. Eat, rest, or use a salve; repair damaged gear at Huno’s forge.');ctx.changed();ctx.persist()}
   const impacts=[...combat.hazards,...combat.enemies.filter(e=>e.enabled&&e.health>0&&e.type==='firebrand'&&e.mode==='windup').map(e=>({x:e.aimX??e.x,z:e.aimZ??e.z,remaining:e.timer}))];
   hazardRings.forEach((ring,i)=>{const h=impacts[i];ring.setEnabled(!!h);if(h){ring.position.set(h.x,terrainHeight(h.x,h.z)+.09,h.z);ring.scaling.setAll(.8+Math.max(0,1-h.remaining)*.2)}});
   refreshWorld();
@@ -215,10 +227,14 @@ export function createColonyGame(ctx:Context){
  }
  function decorateJournal(content:HTMLElement){
   const h=document.createElement('h3');h.textContent=state.outcome==='undecided'?'Chapter II · A mine worth fighting for':'Chapter III · The Last Light';const p=document.createElement('p');p.textContent=currentObjective(state,ctx.progress().stage,ctx.progress().weapon)?.text??'Earn admission to the castle, then speak to Diego about the mine. Press I to inspect your pack.';content.append(h,p);
+  const guide=campaignGuide(state,ctx.progress());const route=document.createElement('p');route.textContent=guide.requirements?guide.text+' '+guide.requirements:guide.text;content.append(route);if(state.campaign.ending){const button=document.createElement('button');button.className='small';button.textContent='Review campaign ending';button.onclick=()=>ctx.result(true);content.append(button)}
   for(const entry of state.log.slice(-8).reverse()){const note=document.createElement('p');note.textContent=`Shift ${entry.day+1}: ${entry.text}`;content.append(note)}
  }
  refreshWorld();
  return {get state(){return state},get isOpen(){return ledger.isOpen},get combat(){return combat},open,close,action,focus,update,target,decorateJournal,quickChoices,
+  guide:()=>campaignGuide(state,ctx.progress()),
+  ensureEnding:()=>finishCampaign(state,ctx.progress().ore),
+  retrySignal(){const nearBeacon=Math.hypot(hero.root.position.x-lastLight.x,hero.root.position.z-lastLight.z)<3;tracked='signal-road';const started=nearBeacon&&combat.startSignal();refreshWorld();ctx.changed();ctx.persist();ctx.notify(started?'The last light is rekindled':'High-road beacon marked',started?'Intercept the levy crew. Repairs cost one timber and one iron.':'Return to the beacon and press E when ready.');},
   objective:()=>currentObjective(state,ctx.progress().stage,ctx.progress().weapon),
   strike:(sword:SwordHandling,yaw:number)=>events(combat.strike({x:hero.root.position.x,z:hero.root.position.z,yaw},state.equipped,sword.combo,ctx.blocked)),
   reaction:(name:string)=>crisisRumor(state,name)||(!state.active?'':name==='Snaf'&&state.reputation.diggers>3?'You kept the pot going. There is always a place by my fire for you.':name==='Huno'&&state.reputation.shadows>3?'You did right by this camp. Let us put that iron to work.':name==='Thorus'&&state.reputation.guards<0?'The mine was your choice. Do not expect the watch to applaud it.':name==='Grim'&&state.outcome==='sealed'?'You gave our seam to the guards. Some of us will remember that.':''),

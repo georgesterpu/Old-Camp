@@ -1,7 +1,7 @@
 import {test,expect} from 'bun:test';
 import {freshColony,normalizeColony,validColony,advanceColony,DAY_SECONDS,gather,gatheringSites,siteAvailable,craft,contribute,prepared,resolveMine,rescue,useSupply,price,currentObjective} from '../src/colony';
 import {parseSave} from '../src/save';
-test('older saves gain safe chapter II defaults without changing chapter I',()=>{const s=parseSave(JSON.stringify({stage:2,ore:4,collected:[1],x:0,z:-70,yaw:0}));expect(s.stage).toBe(2);expect(s.colony).toEqual(freshColony());expect(s.colony.active).toBe(false)});
+test('older saves gain safe chapter II defaults without changing chapter I',()=>{const s=parseSave(JSON.stringify({stage:2,ore:4,collected:[1],x:0,z:-70,yaw:0}));const expected=freshColony();expected.campaign.partial=true;expect(s.stage).toBe(2);expect(s.colony).toEqual(expected);expect(s.colony.active).toBe(false)});
 test('gathering and cache rewards survive reload and cannot be claimed twice',()=>{
  const s=freshColony();expect(gather(s,'timber-north').ok).toBe(true);expect(s.inventory.wood).toBe(3);expect(gather(s,'timber-north').ok).toBe(false);
  const loaded=normalizeColony(JSON.parse(JSON.stringify(s)));expect(gather(loaded,'timber-north').ok).toBe(false);advanceColony(loaded,DAY_SECONDS*2);expect(gather(loaded,'timber-north').ok).toBe(true);

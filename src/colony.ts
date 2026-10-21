@@ -1,12 +1,13 @@
 /** The second chapter's rules. No renderer, DOM or wall clock: saves and tests use the same simulation. */
 import {freshCrisis,normalizeCrisis,crisisObjective,crisisRumor,type CrisisSave} from './escalation';
+import {freshCampaign,normalizeCampaign,recordStat,type CampaignSave} from './campaign';
 export const DAY_SECONDS=900;
 export type Resource='wood'|'iron'|'herb'|'ration'|'salve';
 export type Faction='diggers'|'shadows'|'guards';
 export type WeaponClass='sword'|'axe'|'spear';
 export type MineOutcome='undecided'|'opened'|'sealed';
 export interface ColonySave {
- version:1;crisis:CrisisSave;clock:number;health:number;inventory:Record<Resource,number>;
+ version:1;crisis:CrisisSave;campaign:CampaignSave;clock:number;health:number;inventory:Record<Resource,number>;
  reputation:Record<Faction,number>;stocks:{food:number;tools:number;watch:number};
  aid:{food:boolean;tools:boolean;watch:boolean};active:boolean;mineCleared:boolean;outcome:MineOutcome;
  equipped:WeaponClass;weapons:WeaponClass[];upgrade:number;durability:number;
@@ -15,7 +16,7 @@ export interface ColonySave {
  watch:{active:boolean;wave:number;wins:number};log:{day:number;text:string}[];
  settings:{reducedMotion:boolean;highContrast:boolean;explorer:boolean};
 }
-export const freshColony=():ColonySave=>({version:1,crisis:freshCrisis(),clock:0,health:100,inventory:{wood:0,iron:0,herb:0,ration:2,salve:1},reputation:{diggers:0,shadows:0,guards:0},stocks:{food:2,tools:2,watch:2},aid:{food:false,tools:false,watch:false},active:false,mineCleared:false,outcome:'undecided',equipped:'sword',weapons:['sword'],upgrade:0,durability:100,gathered:{},caches:[],enemies:{},contracts:{},trade:{},discovered:[],watch:{active:false,wave:0,wins:0},log:[],settings:{reducedMotion:false,highContrast:false,explorer:false}});
+export const freshColony=():ColonySave=>({version:1,crisis:freshCrisis(),campaign:freshCampaign(),clock:0,health:100,inventory:{wood:0,iron:0,herb:0,ration:2,salve:1},reputation:{diggers:0,shadows:0,guards:0},stocks:{food:2,tools:2,watch:2},aid:{food:false,tools:false,watch:false},active:false,mineCleared:false,outcome:'undecided',equipped:'sword',weapons:['sword'],upgrade:0,durability:100,gathered:{},caches:[],enemies:{},contracts:{},trade:{},discovered:[],watch:{active:false,wave:0,wins:0},log:[],settings:{reducedMotion:false,highContrast:false,explorer:false}});
 export const resourceNames:Record<Resource,string>={wood:'Timber',iron:'Iron scrap',herb:'Bitterleaf',ration:'Rations',salve:'Healing salves'};
 export const weaponProfiles={sword:{label:'Camp sword',damage:15,range:2.7,windup:.18,recovery:.65,cost:.25},axe:{label:'Woodcutter’s axe',damage:24,range:2.3,windup:.32,recovery:.92,cost:.34},spear:{label:'Watch spear',damage:13,range:3.6,windup:.23,recovery:.76,cost:.23}} as const;
 export const dayOf=(s:ColonySave)=>Math.floor(s.clock/DAY_SECONDS);
@@ -26,7 +27,7 @@ const bounded=(v:unknown,max:number)=>typeof v==='number'&&Number.isFinite(v)&&v
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 /** Tolerant for local recovery; portable imports use strict validation below. */
 export function normalizeColony(value:unknown):ColonySave {
- const base=freshColony();if(!record(value))return base;base.crisis=normalizeCrisis(value.crisis);
+ const base=freshColony();if(!record(value))return base;base.crisis=normalizeCrisis(value.crisis);base.campaign=normalizeCampaign(value.campaign,value.campaign===undefined);
  for(const k of ['clock','health','upgrade','durability'] as const)if(bounded(value[k],k==='clock'?1e9:k==='upgrade'?3:100))base[k]=k==='upgrade'?Math.floor(value[k] as number):value[k] as number;
  for(const k of ['active','mineCleared'] as const)if(typeof value[k]==='boolean')base[k]=value[k];
  for(const k of ['inventory','reputation','stocks'] as const)if(record(value[k]))for(const field of Object.keys(base[k])){const n=value[k][field];if(typeof n==='number'&&Number.isInteger(n)&&n>=(k==='reputation'?-100:0)&&n<=(k==='inventory'?999:100))Object.assign(base[k],{[field]:n})}
@@ -44,6 +45,7 @@ export function normalizeColony(value:unknown):ColonySave {
  if(base.outcome!=='undecided'&&!base.mineCleared)base.outcome='undecided';
  if(base.outcome==='undecided'){base.watch.active=false;base.crisis=freshCrisis()}
  if(base.crisis.stage==='assault')base.watch.active=false;
+ if(base.crisis.stage!=='complete'||base.campaign.ending?.mine!==base.outcome||base.campaign.ending?.charter!==base.crisis.charter){base.campaign.ending=null;base.campaign.seen=false}
  return base;
 }
 export function validColony(value:unknown){
@@ -51,7 +53,7 @@ export function validColony(value:unknown){
  // Normalizing and comparing known fields validates types, ranges and invariants.
  const normalized=normalizeColony(value);
  const ordered=(v:unknown):unknown=>Array.isArray(v)?v.map(ordered):record(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordered(v[k])])):v;
- return Object.keys(normalized).every(k=>k==='crisis'&&value.crisis===undefined||JSON.stringify(ordered(value[k]))===JSON.stringify(ordered(normalized[k as keyof ColonySave])));
+ return Object.keys(normalized).every(k=>(k==='crisis'||k==='campaign')&&value[k]===undefined||JSON.stringify(ordered(value[k]))===JSON.stringify(ordered(normalized[k as keyof ColonySave])));
 }
 export function logEvent(s:ColonySave,text:string){s.log.push({day:dayOf(s),text});if(s.log.length>24)s.log.shift()}
 export function standing(s:ColonySave,f:Faction,amount:number){s.reputation[f]=Math.max(-100,Math.min(100,s.reputation[f]+amount))}
@@ -68,11 +70,12 @@ export function canPay(s:ColonySave,cost:Partial<Record<Resource,number>>){retur
 export function pay(s:ColonySave,cost:Partial<Record<Resource,number>>){if(!canPay(s,cost))return false;for(const [k,n] of Object.entries(cost))s.inventory[k as Resource]-=n!;return true}
 export function addResource(s:ColonySave,k:Resource,n:number){s.inventory[k]=Math.min(999,s.inventory[k]+n)}
 export const recipes={salve:{name:'Brew a healing salve',cost:{herb:2},output:'salve'},ration:{name:'Cook a trail ration',cost:{herb:1,wood:1},output:'ration'}} as const;
-export function craft(s:ColonySave,recipe:keyof typeof recipes){const r=recipes[recipe];if(!pay(s,r.cost))return false;addResource(s,r.output,1);logEvent(s,`${resourceNames[r.output]} prepared at the camp.`);return true}
+export function craft(s:ColonySave,recipe:keyof typeof recipes){const r=recipes[recipe];if(!pay(s,r.cost))return false;addResource(s,r.output,1);recordStat(s,'crafted');logEvent(s,`${resourceNames[r.output]} prepared at the camp.`);return true}
 export function contribute(s:ColonySave,kind:'food'|'tools'|'watch'){
  const costs={food:{ration:2},tools:{wood:2,iron:2},watch:{iron:1,wood:1}} as const;
  if(s.contracts[kind]===dayOf(s)||!pay(s,costs[kind]))return false;
  s.contracts[kind]=dayOf(s);s.aid[kind]=true;s.stocks[kind]=Math.min(10,s.stocks[kind]+3);
+ recordStat(s,'contracts');
  standing(s,kind==='food'?'diggers':kind==='tools'?'shadows':'guards',4);
  logEvent(s,`${kind==='food'?'The pot is stocked':kind==='tools'?'Huno’s replacement tools are ready':'The watch receives fresh spear shafts'}. The camp will remember.`);return true;
 }
@@ -85,6 +88,7 @@ export function useSupply(s:ColonySave,item:'salve'|'ration'){
  if(s.health>=100||s.inventory[item]===0)return false;s.inventory[item]--;s.health=Math.min(100,s.health+(item==='salve'?50:22));return true;
 }
 export function rescue(s:ColonySave,ore:number){
+ recordStat(s,'rescues');
  const lost=Math.min(6,Math.ceil(ore*.2));if(s.crisis.stage==='assault')s.crisis.stage='signals';s.health=65;s.durability=Math.max(0,s.durability-12);s.watch.active=false;
  logEvent(s,`The camp watch brings you home. ${lost} ore lost; your gear needs attention. Quest items are safe.`);return lost;
 }
@@ -109,7 +113,7 @@ export function siteAvailable(s:ColonySave,site:GatheringSite){if(site.kind==='w
 export function gather(s:ColonySave,id:string){
  const site=gatheringSites.find(v=>v.id===id);if(!site||!siteAvailable(s,site)||site.kind==='watch')return {ok:false,ore:0,text:'This site needs two shifts to recover.'};
  if(site.kind==='cache'){s.caches.push(id);addResource(s,'salve',1);addResource(s,'iron',2);standing(s,'diggers',2);logEvent(s,site.clue!);return {ok:true,ore:4,text:site.clue!}}
- s.gathered[id]=dayOf(s);const n=site.amount+(s.outcome==='opened'&&site.kind==='iron'?2:0);addResource(s,site.kind,n);return {ok:true,ore:0,text:`+${n} ${resourceNames[site.kind]}. This site recovers after two shifts.`};
+ s.gathered[id]=dayOf(s);const n=site.amount+(s.outcome==='opened'&&site.kind==='iron'?2:0);addResource(s,site.kind,n);recordStat(s,'gathered',n);return {ok:true,ore:0,text:`+${n} ${resourceNames[site.kind]}. This site recovers after two shifts.`};
 }
 export function currentObjective(s:ColonySave,stage:number,hasWeapon:boolean){
  if(stage<3)return null;

@@ -2,6 +2,7 @@
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 import hashlib
+import json
 root=Path(__file__).resolve().parent.parent
 release=root/'release';release.mkdir(exist_ok=True)
 readme='''THE OLD CAMP — VALLEY EDITION
@@ -80,14 +81,34 @@ Music and ambience have separate controls; you can also load your own soundtrack
 An unofficial Gothic-inspired fan adventure. No original game files are included.
 See CREDITS for source and license information.
 '''
+readme=readme.replace('ALPHA III CONTROLS','RELEASE CANDIDATE 1 CONTROLS').replace('Menus use keyboard, mouse or touch.','Menus: D-pad / left stick focus, A activates, B returns. LB / RB changes pack tabs.\nLeft / right edits appearance choices. Keyboard, mouse and touch are also supported.')
+readme=readme.replace('YOUR JOURNEY','''CAMPAIGN ENDING
+The road charter at Grim's fire completes the campaign and opens its results screen.
+The ending records your mine and road choices, active play time and action statistics.
+Continue into postgame to revisit the valley. The optional keeper's watch asks for
+one ruined-watch defense after the ending; continuing never changes your ending.
+Defeat and a lost beacon show explicit recovery screens. Quest progress stays safe.
+The pack shows the five campaign milestones, missing materials, and a route button.
+
+YOUR JOURNEY''')
+readme=readme.replace('Progress saves automatically in the same browser on this computer.','Progress saves automatically in the same browser on this computer.\nA verified previous-save backup is used automatically if the primary save is damaged.')
+html_digest=hashlib.sha256((root/'old-camp.html').read_bytes()).hexdigest()
+build={'version':json.loads((root/'package.json').read_text())['version'],'html_sha256':html_digest,'html_bytes':(root/'old-camp.html').stat().st_size,'target':'Windows desktop Microsoft Edge / Chrome, file URL, offline','campaign':'Three chapters; charter decision is the campaign ending'}
+manifest=json.dumps(build,indent=2)+'\n'
+(release/'BUILD.json').write_text(manifest,encoding='utf-8')
 archive=release/'Old-Camp-Valley-Edition-Windows.zip'
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
  z.write(root/'old-camp.html','Play Old Camp.html')
  z.writestr('START HERE.txt',readme)
+ z.writestr('BUILD.json',manifest)
  for path in sorted((root/'licenses').glob('*.txt')):z.write(path,'CREDITS/'+path.name)
-(release/'START HERE.txt').write_text(readme)
+(release/'START HERE.txt').write_text(readme,encoding='utf-8')
 digest=hashlib.sha256(archive.read_bytes()).hexdigest()
-(release/'SHA256SUMS.txt').write_text(digest+'  '+archive.name+'\n')
+checksums=release/'SHA256SUMS.txt'
+lines=checksums.read_text().splitlines() if checksums.exists() else []
+lines=[line for line in lines if not line.endswith('  '+archive.name)]
+lines.append(digest+'  '+archive.name)
+checksums.write_text('\n'.join(sorted(lines))+'\n')
 with ZipFile(archive) as z:
  assert z.testzip() is None
  assert z.read('Play Old Camp.html')==(root/'old-camp.html').read_bytes()

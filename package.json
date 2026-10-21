@@ -1,6 +1,6 @@
 {
   "name": "old-camp",
-  "version": "1.3.0-alpha.3",
+  "version": "1.3.0-rc.1",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.3",
@@ -9,8 +9,8 @@
     "check": "tsc --noEmit",
     "build": "bun run check && bun scripts/build.ts",
     "test": "bun test",
-    "package": "bun run build && python scripts/package.py",
-    "package:source": "python scripts/package-source.py"
+    "package": "bun run build && bun scripts/package.ts",
+    "package:source": "bun scripts/package.ts --source"
   },
   "dependencies": {
     "@babylonjs/core": "9.31.0"

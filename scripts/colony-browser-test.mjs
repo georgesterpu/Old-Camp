@@ -12,7 +12,7 @@ const state=()=>evaluate('campTest.colony()');
 const shot=async name=>{await evaluate('campTest.render()');const r=await send('Page.captureScreenshot',{format:'png'});writeFileSync(`docs/alpha2-${name}.png`,Buffer.from(r.data,'base64'))};
 await send('Runtime.enable');await send('Page.enable');await evaluate('sessionStorage.clear()');await reload();await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 await click('#enter');await evaluate('campTest.reset();campTest.render()');
-assert.equal(await evaluate("document.querySelector('.alpha-stamp').textContent"),'ALPHA III · THE LAST LIGHT');
+assert.equal(await evaluate("document.querySelector('.alpha-stamp').textContent"),'RELEASE CANDIDATE 1 · A PLACE WORTH KEEPING');
 await click('#pack-button');assert.equal((await state()).open,true);await shot('pack');
 await evaluate('campTest.advance(.3,["KeyW"])');assert.equal((await evaluate('campDiagnostics()')).running,false,'Pack suspends gameplay');
 await click('[data-close]');
@@ -50,7 +50,7 @@ await evaluate('campTest.teleport(0,-70);campTest.advance(.1)');assert.equal((aw
 await evaluate('campTest.colonyAction("track","Huno")');const saved=await state();await reload();assert.equal((await state()).state.outcome,'opened');assert.deepEqual((await state()).state.inventory,saved.state.inventory);assert.equal((await state()).state.enemies['mine-overseer'].health,0,'Defeats survive reload');
 if(!(await evaluate('campDiagnostics()')).started)await click('#enter');
 await evaluate('campTest.teleport(0,-70);campTest.colonyFixture({...campTest.colony().state,health:1})');
-const road=(await state()).enemies.find(e=>e.id==='road-scout');await evaluate(`campTest.teleport(${road.x},${road.z-1.2});for(let i=0;i<45;i++)campTest.advance(.1)`);const rescued=await evaluate('campDiagnostics()');assert.ok(rescued.position[2]<-60,'Defeat returns player home');assert.equal((await state()).state.health,65);assert.equal((await state()).state.outcome,'opened','Rescue keeps campaign consequences');
+const road=(await state()).enemies.find(e=>e.id==='road-scout');await evaluate(`campTest.teleport(${road.x},${road.z-1.2});for(let i=0;i<45;i++)campTest.advance(.1)`);const rescued=await evaluate('campDiagnostics()');assert.ok(rescued.position[2]<-60,'Defeat returns player home');assert.equal((await state()).state.health,65);assert.equal((await state()).state.outcome,'opened','Rescue keeps campaign consequences');assert.equal((await evaluate('campDiagnostics()')).resultKind,'defeat');await click('[data-result-continue]');
 await click('#pack-button');await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await shot('mobile-pack');assert.equal(await evaluate("(()=>{const r=document.querySelector('#camp-ledger [data-close]').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})()"),true,'Close remains accessible on mobile');await click('[data-close]');
 await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 await click('#pack-button');await click('[data-action="track"][data-arg="wood"]');model=await state();assert.ok(model.sites.some(s=>s.kind==='wood'&&s.available&&s.x===model.target.x&&s.z===model.target.z),'Resource tracking selects an available patch');await click('[data-close]');

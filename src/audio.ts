@@ -2,7 +2,7 @@ import {AmbientScore} from './music';
 export class CampAudio {
  private context?:AudioContext;private master?:GainNode;private world?:GainNode;private score?:AmbientScore;private musicEnabled=true;private analyser?:AnalyserNode;private fireGain?:GainNode;private firePan?:StereoPannerNode;private noise?:AudioBuffer;
  private nextBird=0;private muted=false;private paused=false;private steps=0;private lastError='';
- constructor(private changed:()=>void){}
+ constructor(private changed:()=>void,preferences?:{muted:boolean;music:boolean}){if(preferences){this.muted=preferences.muted;this.musicEnabled=preferences.music}}
  get state(){return this.context?.state||'not-started'}
  get isMuted(){return this.muted}
  async unlock(){
