@@ -1,0 +1,14 @@
+import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+const result = await Bun.build({entrypoints:['src/main.ts'],target:'browser',minify:true,plugins:[{name:'embed-textures',setup(build){build.onLoad({filter:/\.(png|jpg|webp)$/},async(args)=>({contents:'export default '+JSON.stringify('data:image/'+(args.path.endsWith('.jpg')?'jpeg':args.path.endsWith('.webp')?'webp':'png')+';base64,'+Buffer.from(await Bun.file(args.path).arrayBuffer()).toString('base64')),loader:'js'}))}}]});
+if(!result.success) throw new AggregateError(result.logs,'Build failed');
+const license=await readFile('licenses/Babylon.js.txt','utf8');
+const notice=await readFile('licenses/Babylon.js-NOTICE.txt','utf8');
+const js='/* Babylon.js\n'+license+'\n'+notice+'\n*/\n'+await result.outputs[0].text();
+const template=await readFile('src/index.html','utf8');
+const html=template.replace('<script type="module" src="./main.ts"></script>',()=>`<script type="module">${js.replace(/<\/script/gi,'<\\/script')}</script>`);
+await mkdir('dist',{recursive:true});
+await writeFile('dist/index.html.tmp',html);
+await rename('dist/index.html.tmp','dist/index.html');
+await writeFile('old-camp.html.tmp',html);
+await rename('old-camp.html.tmp','old-camp.html');
+console.log(`Built offline Old Camp (${(Buffer.byteLength(html)/1024/1024).toFixed(1)} MB): old-camp.html`);

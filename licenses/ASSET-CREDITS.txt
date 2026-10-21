@@ -1,0 +1,43 @@
+THE OLD CAMP — VALLEY EDITION
+An unofficial fan tribute inspired by Gothic. Not affiliated with THQ Nordic,
+Alkimia Interactive, or Piranha Bytes. No original game assets are bundled.
+
+ENGINE
+Babylon.js 9.31.0 — Apache License 2.0.
+Full license and notice accompany this file and are embedded in the HTML.
+
+HUMAN MODEL AND SKIN
+"3D male" by Drummyfish — CC0 / Public Domain.
+https://opengameart.org/content/3d-male-0
+https://creativecommons.org/publicdomain/zero/1.0/
+Adapted: subdivision, clothing regions, skeleton and animation, hair,
+complexion variations, and accessories.
+
+PHOTOGRAPHED SURFACES
+Poly Haven — CC0 / Public Domain.
+https://polyhaven.com/license
+All downloaded maps are embedded locally; there are no runtime downloads.
+
+Castle Wall Slates — Rob Tuytel
+https://polyhaven.com/a/castle_wall_slates
+Dark Wooden Planks — Amal Kumar
+https://polyhaven.com/a/dark_wooden_planks
+Forest Ground 04 — Rob Tuytel and Rico Cilliers
+https://polyhaven.com/a/forest_ground_04
+Roof Slates 02 — Rob Tuytel
+https://polyhaven.com/a/roof_slates_02
+Rock Boulder Dry — Dimitrios Savva and Rico Cilliers
+https://polyhaven.com/a/rock_boulder_dry
+Pine Bark — Dimitrios Savva
+https://polyhaven.com/a/pine_bark
+Brown Leather — Rob Tuytel
+https://polyhaven.com/a/brown_leather
+Fabric Pattern 05 — Rob Tuytel
+https://polyhaven.com/a/fabric_pattern_05
+
+ORIGINAL / GENERATED WORK
+World geometry, character rigging and clothing adaptation, wildlife geometry,
+quests, user interface, synthesized ambience and original musical score are
+created for this project. Storm sky, initial material atlas, and transparent
+pine bough artwork were generated with OpenAI's built-in image-generation tool.
+Prompts and workflow are recorded in assets/README.md in the source project.

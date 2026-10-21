@@ -1,0 +1,12 @@
+import { Scene, Mesh, MeshBuilder, ShaderMaterial, Vector3, Color3 } from '@babylonjs/core';
+import type { Camp } from './world';
+export function addAtmosphere(scene:Scene,camp:Camp){
+ const flame=new ShaderMaterial('animated fire',scene,{
+  vertexSource:`precision highp float;attribute vec3 position;attribute vec2 uv;uniform mat4 worldViewProjection;varying vec2 vUV;void main(){vUV=uv;gl_Position=worldViewProjection*vec4(position,1.0);}`,
+  fragmentSource:`precision highp float;varying vec2 vUV;uniform float time;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}void main(){vec2 p=vUV;float n=noise(vec2(p.x*7.0,p.y*6.0-time*3.0));float bend=sin(p.y*11.0-time*5.0)*.055*p.y;float width=(1.0-p.y)*.37;float shape=1.0-smoothstep(width*.35,width+.08,abs(p.x-.5+bend+(n-.5)*.1));float alpha=shape*smoothstep(0.0,.13,p.y)*(1.0-smoothstep(.6,1.0,p.y+n*.18));if(alpha<.02)discard;vec3 color=mix(vec3(1.0,.20,.025),vec3(1.0,.82,.28),shape*(1.0-p.y));gl_FragColor=vec4(color,alpha*.88);}`
+ },{attributes:['position','uv'],uniforms:['worldViewProjection','time'],needAlphaBlending:true});flame.backFaceCulling=false;flame.disableDepthWrite=true;
+ for(const f of camp.fires){const old=f.mesh;const size=old.getBoundingInfo().boundingBox.extendSize.x*2;old.dispose();const plane=MeshBuilder.CreatePlane('animated flame',{width:size*2,height:size*1.5,sideOrientation:Mesh.DOUBLESIDE},scene);plane.position=f.base.add(new Vector3(0,size,0));plane.material=flame;plane.billboardMode=Mesh.BILLBOARDMODE_Y;plane.isPickable=false;f.mesh=plane;}
+ // A brief blue discharge outlines the magical prison over the valley.
+ const arcs:Mesh[]=[];for(let j=0;j<3;j++){const points:Vector3[]=[];const angle=j*1.9+.5;for(let i=0;i<28;i++){const t=i/27*Math.PI*.8+.1;const radius=190;points.push(new Vector3(Math.sin(angle)*Math.cos(t)*radius+Math.sin(i*23+j)*2,Math.sin(t)*radius*.85,Math.cos(angle)*Math.cos(t)*radius+Math.sin(i*11)*2))}const line=MeshBuilder.CreateLines('barrier discharge',{points},scene);line.color=new Color3(.3,.65,1);line.alpha=.65;line.isPickable=false;line.setEnabled(false);arcs.push(line)}
+ return (t:number)=>{flame.setFloat('time',t);for(let i=0;i<arcs.length;i++){const pulse=(t+i*6)%31;arcs[i].setEnabled(pulse>29.9&&pulse<30.12||pulse>30.25&&pulse<30.4)}};
+}

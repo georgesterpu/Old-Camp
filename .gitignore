@@ -1,0 +1,26 @@
+node_modules/
+dist/
+
+# Generated game and release packages
+/old-camp.html
+/release/
+/checkpoints/
+*.tmp
+
+# Local tools and caches
+/.tools/
+/.cache/
+__pycache__/
+*.py[cod]
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
