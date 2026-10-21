@@ -14,7 +14,7 @@ test('supply contracts are once per shift while preparation remains credited',()
  expect(s.reputation).toEqual({diggers:4,shadows:4,guards:4});advanceColony(s,DAY_SECONDS*20);expect(s.stocks).toEqual({food:0,tools:0,watch:0});expect(prepared(s)).toBe(true);s.inventory.ration=2;expect(contribute(s,'food')).toBe(true);
 });
 test('mine outcomes are exclusive, change standing and improve real resource yield',()=>{
- const s=freshColony();expect(resolveMine(s,'opened')).toBe(false);s.active=true;s.mineCleared=true;expect(resolveMine(s,'opened')).toBe(true);expect(resolveMine(s,'sealed')).toBe(false);expect(s.reputation.diggers).toBe(20);expect(s.reputation.guards).toBe(-6);gather(s,'iron-mine');expect(s.inventory.iron).toBe(5);expect(currentObjective(s,3,true)?.label).toContain('watch');
+ const s=freshColony();expect(resolveMine(s,'opened')).toBe(false);s.active=true;s.mineCleared=true;expect(resolveMine(s,'opened')).toBe(true);expect(resolveMine(s,'sealed')).toBe(false);expect(s.reputation.diggers).toBe(20);expect(s.reputation.guards).toBe(-6);gather(s,'iron-mine');expect(s.inventory.iron).toBe(5);expect(currentObjective(s,3,true)?.label).toContain('Grim');
 });
 test('supplies cannot be wasted at full health and rescue keeps campaign items',()=>{const s=freshColony();s.active=true;s.mineCleared=true;s.outcome='opened';s.caches=['cache-shrine'];s.health=80;expect(useSupply(s,'ration')).toBe(true);expect(s.health).toBe(100);expect(useSupply(s,'salve')).toBe(false);expect(rescue(s,100)).toBe(6);expect(s.health).toBe(65);expect(s.caches).toEqual(['cache-shrine']);expect(s.outcome).toBe('opened')});
 test('portable state validates nested data independently of object key order',()=>{

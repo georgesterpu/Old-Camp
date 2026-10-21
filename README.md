@@ -4,11 +4,46 @@ An offline Gothic-inspired exploration game: a working camp, a much larger wild 
 textured human characters, photographed surfaces, original music, and peaceful wildlife.
 An unofficial tribute; no original Gothic game data is required or distributed.
 
-## Alpha II: Supply & Consequence
+## Alpha III: The Last Light
+
+The mine decision now leads into a third chapter with a personal stake: Grim’s sister
+Mara is on the next ore cart, and displaced levy men are cutting the signal road.
+Refresh **old-camp.html** and check for **ALPHA III · THE LAST LIGHT**.
+
+**Continue an existing journey:** after either mine resolution, talk to **Grim** and
+choose his **Chapter III** conversation. Existing saves and portable Alpha II exports
+keep their appearances, inventory and mine outcome.
+
+- Restore signals at the shrine, river and high road: **E**, costing **1 timber + 1 iron**
+  each. The objective, compass and map guide the next repair.
+- At the restored high-road signal, press **E** again to call the caravan. Intercept
+  the levy captain, long-reach outriders and a firebrand before they destroy the light.
+  **E** at a damaged beacon repairs **35%** for **1 timber + 1 iron**. Timber cover stops
+  movement and attacks; orange impact circles show where fire pots will land.
+- The mine matters again: sealing it lets the watch intercept one flanker; reopening
+  it brings two spare timbers from the diggers. Retreat or defeat preserves the signal
+  repairs and lets you retry the assault. There is no off-screen countdown.
+- Return to Grim. A **commons charter** brings food each shift; a **watch charter** brings
+  watch supplies and suppresses roving firebrands. Both permanently change standing,
+  pay **25 ore**, and bring Mara to the campfire with her own response.
+- Roving levy patrols change hunting grounds between day and evening, revisiting the
+  river bitterleaf and shrine. Defeating a patrol recovers rations and camp food once
+  per patrol shift. Repeated road contests and the ruined watch continue after the ending.
+
+Management takes fewer steps: named residents offer direct cooking, deliveries, repairs,
+trade and chapter choices in conversation. The pack shows usable nearby services and a
+clear next objective; away from camp services it shows supplies and equipment.
+**H** uses a salve and **Z** cycles owned weapons. Wind-ups show a countdown, energy and
+worn gear warnings are visible, and an exhausted guard can break under a blow.
+
+This extends the existing valley into a three-chapter mini-RPG. It does not add a new
+region, a full-length campaign, or a general-purpose society simulation.
+
+## Chapter II: Supply & Consequence
 
 The opening adventure now leads into **A mine worth fighting for**, a second chapter
 built around gathering, supplies, trade, combat and a permanent decision about the mine.
-The title screen displays **ALPHA II · SUPPLY & CONSEQUENCE** in the current build.
+This chapter remains available before The Last Light.
 
 **To begin:** earn castle admission from Thorus and a blade from Huno. Return to Diego,
 talk to him, and choose **Supplies, trade and camp news**. In **Camp affairs**, begin the
@@ -125,6 +160,7 @@ Older saves receive the original hero's appearance. Starting a new journey keeps
 - Mouse wheel changes camera distance; **V** switches first / third person.
 - **E** talks / collects. **M** opens the map; **J** opens the journal; **I** opens pack and camp affairs.
 - **Tab** draws / sheathes an earned weapon. **F / left click** strikes; **C** dodges.
+- **H** uses a healing salve; **Z** cycles owned weapons.
 - **Q / right click** holds guard. A strike has a short wind-up and recovery; guard costs
   energy when it stops a frontal blow. Energy recovers automatically and never limits sprinting.
 - **P** hides the HUD for pictures. **R** returns to the north gate when not pursued.
@@ -164,7 +200,7 @@ The final package is tested directly with a file URL and external requests block
 Earlier browser verification used Linux and a software-rendered browser. Actual
 gaming-GPU performance needs testing on the player's machine.
 
-Alpha II verification also runs in muted Windows Edge with SwiftShader. The colony
+Alpha II regression verification also runs in muted Windows Edge with SwiftShader. The colony
 browser test exercises gathering, crafting, real weapon strikes through the mine fight,
 branching consequences, persistent wounds and inventory, defeat rescue, and mobile menus.
 Controller mapping is checked with a simulated standard gamepad; physical-controller

@@ -25,9 +25,10 @@ Tab: draw / sheathe       F or left click: strike
 Q or right click: hold guard                    P: hide HUD
 R: return to the north gate
 
-ALPHA II CONTROLS
+ALPHA III CONTROLS
 I: pack, equipment, trade, camp affairs and field notes
 C: dodge (costs energy)   Fresh Q / right-click guard: timed parry
+H: healing salve         Z: cycle owned weapons
 Touch buttons also include dodge and healing.
 Standard gamepad: left stick move, right stick look, left-stick press sprint,
 A jump, X interact, Y draw, RT strike, LT guard, B dodge, Start pause, Back pack.
@@ -54,6 +55,15 @@ Drive the overseer from the mine, then decide its future with Diego. Both
 resolutions change the valley and unlock the repeatable ruined-watch challenge.
 If defeated, the watch brings you home; campaign decisions and quest items stay.
 Field notes includes Explorer mode, reduced motion, high contrast and rumours.
+
+ALPHA III: THE LAST LIGHT
+After either mine decision, talk to Grim about his sister's caravan.
+Restore the shrine, river and high-road signals: E costs 1 timber + 1 iron each.
+Press E at the restored high-road beacon to begin the final defense.
+Intercept the levy crew. Orange circles mark incoming fire pots; timber gives cover.
+E at the damaged beacon repairs 35 percent for 1 timber + 1 iron.
+Return to Grim for the commons or watch road charter. Both bring Mara home.
+Named residents offer direct services in conversation, alongside the pack menus.
 
 YOUR JOURNEY
 Progress saves automatically in the same browser on this computer.

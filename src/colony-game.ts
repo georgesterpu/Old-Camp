@@ -2,7 +2,8 @@ import {Scene,Mesh,MeshBuilder,TransformNode,StandardMaterial,DynamicTexture,Tex
 import {createCharacterFactory} from './characters';
 import {createCampLedger} from './camp-ledger';
 import {freshColony,normalizeColony,resourceNames,weaponProfiles,gatheringSites,siteAvailable,gather,currentObjective,dayOf,hourOf,timeLabel,advanceColony,DAY_SECONDS,contribute,craft,canPay,pay,addResource,price,useSupply,resolveMine,rescue,logEvent,rumor,type ColonySave,type Resource,type WeaponClass} from './colony';
-import {ValleyCombat,enemyDefinitions,type Enemy,type CombatEvent} from './valley-combat';
+import {ValleyCombat,enemyDefinitions,enemyProfiles,type Enemy,type CombatEvent} from './valley-combat';
+import {signalSites,signalCover,lastLight,beginCrisis,repairSignal,patchBeacon,settleCharter,crisisRumor} from './escalation';
 import {terrainHeight,walkHeight} from './terrain';
 import type {Person} from './world';
 import type {SurfaceSet} from './surfaces';
@@ -43,10 +44,22 @@ export function createColonyGame(ctx:Context){
   return {...site,...spot,root};
  });
  const makeCharacter=createCharacterFactory(scene,ctx.surfaces);
+ const signalFire=mat('signal flame amber','#ffc773');signalFire.emissiveColor=Color3.FromHexString('#ff9d38');
+ const signals=signalSites.map(site=>{
+  const spot=safePoint(site.x,site.z),root=new TransformNode(site.label,scene);root.position.set(spot.x,terrainHeight(spot.x,spot.z),spot.z);
+  const pole=MeshBuilder.CreateCylinder(site.label+' timber mast',{height:2.8,diameter:.22,tessellation:8},scene);pole.parent=root;pole.position.y=1.4;pole.material=wood;pole.isPickable=false;
+  const basket=MeshBuilder.CreateBox('signal iron basket',{width:.8,height:.35,depth:.8},scene);basket.parent=root;basket.position.y=2.7;basket.material=metal;basket.isPickable=false;
+  const flame=MeshBuilder.CreateSphere('restored signal flame',{diameter:.65,segments:8},scene);flame.parent=root;flame.position.y=3.15;flame.scaling.y=1.7;flame.material=signalFire;flame.isPickable=false;
+  return {...site,...spot,root,flame};
+ });
+ const hazardMaterial=mat('fire pot landing warning','#ff672f');hazardMaterial.emissiveColor=new Color3(1,.19,.025);
+ const cover=signalCover.map(p=>{const root=new TransformNode('signal-road timber cover',scene);root.position.set(p.x,terrainHeight(p.x,p.z),p.z);for(let i=0;i<3;i++){const beam=MeshBuilder.CreateBox('stacked signal-road sleeper',{width:p.w,height:.28,depth:p.d},scene);beam.parent=root;beam.position.y=.16+i*.28;beam.material=wood;beam.isPickable=false}return root});
+ const hazardRings=Array.from({length:8},(_,i)=>{const ring=MeshBuilder.CreateTorus('fire pot impact area '+i,{diameter:3.6,thickness:.09,tessellation:32},scene);ring.material=hazardMaterial;ring.isPickable=false;ring.setEnabled(false);return ring});
  const actorData=combat.enemies.map((e,i)=>{
   const actor=makeCharacter(e.name,'Valley crew',e.x,e.z,true);
-  actor.setAppearance({...actor.appearance,skin:i%2?'olive':'umber',hairStyle:e.type==='brute'?'shaved':e.type==='overseer'?'swept':'cropped',hairColor:e.type==='overseer'?'grey':'brown',facialHair:e.type==='brute'?'beard':'stubble',outfit:e.type==='sentinel'||e.type==='overseer'?'guard':'jerkin',clothColor:e.group==='mine'?'plum':'charcoal',mark:'scar',build:e.type==='brute'?'stocky':'average'});
-  actor.setWeapon?.(true);styleWeapon(actor.weapon!,e.type==='brute'?'axe':e.type==='raider'?'spear':'sword',scene);actor.root.setEnabled(false);actor.weapon?.setEnabled(false);
+  actor.setAppearance({...actor.appearance,skin:i%2?'olive':'umber',hairStyle:e.type==='brute'?'shaved':e.type==='overseer'?'swept':'cropped',hairColor:e.type==='overseer'?'grey':'brown',facialHair:e.type==='brute'?'beard':'stubble',outfit:e.type==='sentinel'||e.type==='overseer'?'guard':'jerkin',clothColor:e.type==='firebrand'?'rust':e.type==='skirmisher'?'blue':e.group==='mine'?'plum':'charcoal',mark:'scar',build:e.type==='brute'?'stocky':'average'});
+  actor.setWeapon?.(true);styleWeapon(actor.weapon!,e.type==='brute'?'axe':e.type==='raider'||e.type==='skirmisher'?'spear':'sword',scene);actor.root.setEnabled(false);actor.weapon?.setEnabled(false);
+  if(e.type==='firebrand'){const pot=MeshBuilder.CreateSphere('levy fire pot',{diameter:.25,segments:8},scene);pot.parent=actor.arms[1];pot.position.set(0,-.52,0);pot.material=signalFire;pot.isPickable=false}
   if(ctx.software)for(const m of actor.root.getChildMeshes())if(m.material instanceof StandardMaterial){m.material.bumpTexture=null;m.material.maxSimultaneousLights=2}
   const ring=MeshBuilder.CreateTorus(e.name+' attack warning',{diameter:e.type==='brute'?2.5:1.8,thickness:.055,tessellation:28},scene),warning=mat(e.name+' telegraph','#d4a34e');warning.emissiveColor=new Color3(.3,.15,.02);ring.material=warning;ring.isPickable=false;ring.setEnabled(false);
   return {actor,ring,warning};
@@ -56,14 +69,36 @@ export function createColonyGame(ctx:Context){
  const barricade=new TransformNode('watch-sealed mine entrance',scene);barricade.position.set(-112,terrainHeight(-112,75),75);
  for(const y of [.6,1.3,2]){const beam=MeshBuilder.CreateBox('watch barricade plank',{width:5.4,height:.22,depth:.18},scene);beam.parent=barricade;beam.position.y=y;beam.material=wood;beam.isPickable=false}
  const reopened=makeCharacter('Mine shift foreman','Digger',-111,70);reopened.setAppearance({...reopened.appearance,outfit:'apron',hairStyle:'shaved',facialHair:'beard',clothColor:'ochre'});reopened.root.position.y=terrainHeight(-111,70);reopened.root.setEnabled(false);
+ const sister=makeCharacter('Mara','Caravan survivor',-10,-33);sister.setAppearance({...sister.appearance,hairStyle:'swept',hairColor:'auburn',outfit:'tunic',clothColor:'moss'});sister.root.position.y=terrainHeight(-10,-33);sister.root.setEnabled(false);
  const mineSign=MeshBuilder.CreatePlane('mine outcome notice',{width:2.8,height:.65,sideOrientation:Mesh.DOUBLESIDE},scene);mineSign.position.set(-108,terrainHeight(-108,72)+1.6,72);mineSign.rotation.y=Math.PI;mineSign.isPickable=false;
  const signTexture=new DynamicTexture('mine future lettering',{width:512,height:128},scene,false);const signMat=mat('mine future sign','#ffffff');signMat.diffuseTexture=signTexture;mineSign.material=signMat;let shownOutcome='';
  const hud=document.createElement('div');hud.id='colony-hud';hud.innerHTML='<div id="colony-clock"></div><div id="colony-tracker"></div><div id="colony-health"></div><div id="colony-enemy" aria-live="polite"></div>';document.getElementById('hud')!.append(hud);
- const stamp=document.createElement('p');stamp.className='alpha-stamp';stamp.textContent='ALPHA II · SUPPLY & CONSEQUENCE';document.querySelector('#start-screen .menu')!.prepend(stamp);
+ const stamp=document.createElement('p');stamp.className='alpha-stamp';stamp.textContent='ALPHA III · THE LAST LIGHT';document.querySelector('#start-screen .menu')!.prepend(stamp);
  document.querySelector('#map-panel p')!.textContent='◆ You · ◇ Ore · ● People · ■ Discovered supplies · red: known threats · gold ring: tracked destination';
  const flash=document.createElement('div');flash.id='impact-flash';document.body.append(flash);let flashAge=0;
  const ledger=createCampLedger({state:()=>state,ore:()=>ctx.progress().ore,stage:()=>ctx.progress().stage,hasWeapon:()=>ctx.progress().weapon,nearby:nearestNames,act:action,close:()=>close()});
  function commit(text:string){ctx.changed();ctx.persist();return text}
+ function quickChoices(name:string){
+  const s=state,p=ctx.progress(),list:{text:string;what:string;arg?:string}[]=[];
+  const add=(text:string,what:string,arg?:string)=>list.push({text,what,arg});
+  if(name==='Grim'&&s.outcome!=='undecided'){
+   if(s.crisis.stage==='dormant')add('Your sister’s caravan? Tell me what happened. [Chapter III]','crisis');
+   if(s.crisis.stage==='return'){add('Keep the road in common hands. [Food caravans · +25 ore]','charter','commons');add('Give the watch the road charter. [Safer patrols · +25 ore]','charter','watch')}
+  }
+  if(name==='Diego'&&p.stage===3&&p.weapon&&!s.active)add('Let’s prepare the mine expedition. [Chapter II]','begin');
+  if(s.active)for(const kind of ['food','tools','watch'] as const){const owner={food:'Snaf',tools:'Huno',watch:'Thorus'}[kind],cost={food:{ration:2},tools:{wood:2,iron:2},watch:{wood:1,iron:1}}[kind];if(name===owner&&s.contracts[kind]!==dayOf(s)&&canPay(s,cost))add(`Deliver ${kind==='food'?'2 rations':kind==='tools'?'2 timber + 2 iron':'1 timber + 1 iron'}. [+3 ore · standing]`,'contribute',kind)}
+  if(name==='Snaf'){
+   if(s.inventory.herb>=2)add('Brew a salve. [2 bitterleaf]','craft','salve');
+   if(s.inventory.herb&&s.inventory.wood)add('Cook a ration. [1 bitterleaf + 1 timber]','craft','ration');
+   if(!combat.threatened)add('Rest by the pot until the next shift.','rest');
+  }
+  if(name==='Huno'&&p.weapon){
+   if(s.durability<100)add('Repair my equipment. [3 ore + 1 iron]','repair');
+   if(s.upgrade<3)add(`Temper my weapon. [${8+s.upgrade*6} ore + ${2+s.upgrade} iron]`,'upgrade');
+  }
+  if(name==='Fisk'){add(`Buy a salve. [${price(s,4)} ore]`,'buy','salve');add(`Buy a ration. [${price(s,2)} ore]`,'buy','ration')}
+  return list.map(({text,what,arg})=>({text,action:()=>{const result=action(what,arg);ctx.notify(name,result)}}));
+ }
  function need(name:string){return near(name)?'':`Visit ${name} in person. Use Field notes to track them.`}
  function action(what:string,arg=''):string{
   const s=state,progress=ctx.progress();let message='';
@@ -71,6 +106,8 @@ export function createColonyGame(ctx:Context){
   const spend=(ore:number,resources:Partial<Record<Resource,number>>)=>{if(progress.ore<ore||!canPay(s,resources))return false;pay(s,resources);ctx.ore(-ore);return true};
   if(what==='use'){if(arg!=='salve'&&arg!=='ration')return 'Unknown supply.';message=useSupply(s,arg)?'Health restored.':'You need that supply and a wound to treat.'}
   else if(what==='equip'){if(!progress.weapon||!s.weapons.includes(arg as WeaponClass))return 'Earn or forge this weapon first.';s.equipped=arg as WeaponClass;message=`Equipped ${weaponProfiles[s.equipped].label}.`}
+  else if(what==='crisis'){if(need('Grim'))return need('Grim');if(!beginCrisis(s))return 'Resolve the mine first. Grim’s signal mission can only begin once.';tracked=null;message='Chapter III · The Last Light. Restore three signals: 1 timber + 1 iron each.'}
+  else if(what==='charter'){if(need('Grim'))return need('Grim');if(arg!=='commons'&&arg!=='watch')return 'Choose the commons or the watch.';if(!settleCharter(s,arg))return 'Bring the caravan through first. The road charter can only be awarded once.';ctx.ore(25);tracked=null;message='A way home · +25 ore. Mara is safe beside Grim’s fire. Your road charter will shape every new shift.'}
   else if(what==='begin'){if(need('Diego'))return need('Diego');if(progress.stage<3||!progress.weapon)return 'Earn castle admission and Huno’s blade first.';if(s.active)return 'The expedition is already underway.';s.active=true;logEvent(s,'Diego asks you to prepare food, tools and a watch. The old mine’s future is now in your hands.');message='A mine worth fighting for · chapter II begun.'}
   else if(what==='buy'){
    if(need('Fisk'))return need('Fisk');const base={ration:2,salve:4,iron:3,wood:2}[arg as 'ration'];if(base===undefined)return 'This supply is not for sale.';const key=`buy-${arg}`,cost=price(s,base);if((s.trade[key]??0)>=4)return 'Sold out until the next shift.';if(!spend(cost,{}))return `Need ${cost} ore.`;addResource(s,arg as Resource,1);s.trade[key]=(s.trade[key]??0)+1;message=`Bought ${resourceNames[arg as Resource]} · −${cost} ore.`;
@@ -99,6 +136,9 @@ export function createColonyGame(ctx:Context){
  function open(name?:string){ctx.open();ledger.open(name)}
  function close(){ledger.close();ctx.close()}
  function refreshWorld(){
+  for(const p of cover)p.setEnabled(state.crisis.stage!=='dormant');
+  for(const site of signals){site.root.setEnabled(state.crisis.stage!=='dormant');site.flame.setEnabled(state.crisis.repaired.includes(site.id)&&(site.id!=='signal-road'||state.crisis.stage!=='signals'||state.crisis.attempts===0))}
+  sister.root.setEnabled(state.crisis.stage==='return'||state.crisis.stage==='complete');
   for(const site of sites)site.root.setEnabled(siteAvailable(state,site));
   supplies.setEnabled(state.active);for(const v of stores)v.mesh.setEnabled(state.stocks[v.kind]>v.index*3);
   barricade.setEnabled(state.outcome==='sealed');reopened.root.setEnabled(state.outcome==='opened');
@@ -106,18 +146,31 @@ export function createColonyGame(ctx:Context){
   document.body.classList.toggle('high-contrast',state.settings.highContrast);
  }
  function target(){
+  if(state.crisis.stage==='assault')return {...lastLight,label:`Last light · ${Math.ceil(state.crisis.integrity)}% integrity`};
   if(tracked){const person=people.find(p=>p.name===tracked);if(person)return {x:person.root.position.x,z:person.root.position.z,label:person.name};const site=sites.find(s=>s.id===tracked);if(site)return {x:site.x,z:site.z,label:site.label};if(tracked==='road')return {x:-27,z:-97,label:'The road levy'}}
   const obj=currentObjective(state,ctx.progress().stage,ctx.progress().weapon);if(!obj)return null;
   // Schedule changes never leave a destination marker pointing at an empty home.
   const name=obj.label.split(' · ')[0],person=people.find(p=>p.name===name);return person?{...obj,x:person.root.position.x,z:person.root.position.z}:obj;
  }
  function focus(maxDistance:number):ValleyFocus|null{
+  if(sister.root.isEnabled()&&Vector3.Distance(sister.root.position,hero.root.position)<Math.min(2.7,maxDistance))return {label:'Mara · caravan survivor',detail:'Speak with Grim’s sister',activate:()=>ctx.notify('Mara','All I could see was that last light. Grim said you kept it burning. I thought nobody in this valley would come for us.')};
+  if(state.crisis.stage!=='dormant'){
+   const site=signals.find(p=>Math.hypot(p.x-hero.root.position.x,p.z-hero.root.position.z)<Math.min(2.7,maxDistance));
+   if(site&&(!state.crisis.repaired.includes(site.id)||site.id==='signal-road'))return {label:site.label,detail:!state.crisis.repaired.includes(site.id)?'Restore signal · 1 timber + 1 iron':state.crisis.stage==='assault'?'Repair beacon +35% · 1 timber + 1 iron':state.crisis.stage==='signals'?'Call the caravan · defend the last light':'The caravan made it through',activate:()=>{
+    if(Math.hypot(site.x-hero.root.position.x,site.z-hero.root.position.z)>3)return;
+    let text='The signal line is already restored.';
+    if(!state.crisis.repaired.includes(site.id)){text=repairSignal(state,site.id)?`${site.label} restored · ${state.crisis.repaired.length}/3 lights.`:'Need 1 timber + 1 iron. Restore signals before calling the caravan.';if(tracked===site.id)tracked=null}
+    else if(site.id==='signal-road'&&state.crisis.stage==='assault')text=patchBeacon(state)?'Beacon reinforced · +35% integrity.':'Need a damaged beacon, 1 timber and 1 iron.';
+    else if(site.id==='signal-road'&&state.crisis.stage==='signals')text=combat.startSignal()?'The last light · intercept the levy crew. E here repairs the beacon.':state.watch.active?'Finish or retreat from the ruined watch first.':'Restore all three signals first.';
+    combat.sync();refreshWorld();ctx.notify(text);ctx.changed();ctx.persist();
+   }};
+  }
   let best=sites.filter(site=>site.root.isEnabled()&&Math.hypot(site.x-hero.root.position.x,site.z-hero.root.position.z)<Math.min(2.7,maxDistance)).sort((a,b)=>Math.hypot(a.x-hero.root.position.x,a.z-hero.root.position.z)-Math.hypot(b.x-hero.root.position.x,b.z-hero.root.position.z))[0];
   if(!best)return null;const site=best;
   return {label:site.label,detail:site.kind==='watch'?'Light beacon · three waves · retreat is possible':site.kind==='cache'?'Hidden supplies & evidence':`Gather ${resourceNames[site.kind]} · recovers after two shifts`,activate:()=>{
    if(Math.hypot(site.x-hero.root.position.x,site.z-hero.root.position.z)>3)return;
    if(site.kind==='watch'){if(state.outcome==='undecided'){ctx.notify('The beacon is cold','Decide the old mine’s future with Diego first.');return}if(!combat.startWatch()){ctx.notify('The watch is already underway');return}ctx.notify('Hold the ruined beacon','Three waves. Use reach and fresh guards; retreat if needed.');ctx.changed();ctx.persist();return}
-   const result=gather(state,site.id);if(!result.ok){ctx.notify('Nothing left to collect',result.text);return}ctx.ore(result.ore);ctx.notify(site.label,result.text);refreshWorld();ctx.changed();ctx.persist();
+   const result=gather(state,site.id);if(!result.ok){ctx.notify('Nothing left to collect',result.text);return}if(tracked===site.id)tracked=null;ctx.ore(result.ore);ctx.notify(site.label,result.text);refreshWorld();ctx.changed();ctx.persist();
   }};
  }
  function events(list:CombatEvent[]){for(const event of list){
@@ -129,17 +182,20 @@ export function createColonyGame(ctx:Context){
  }if(list.length){ctx.changed();ctx.persist()}}
  function update(dt:number,yaw:number,sword:SwordHandling,practice=false){
   if(restoreEnergy){sword.energy=1;sword.draw(false);restoreEnergy=false}
-  worldTime+=dt;const oldDay=dayOf(state);advanceColony(state,dt);if(dayOf(state)!==oldDay){state.trade={day:dayOf(state)};refreshWorld();ctx.changed();ctx.persist()}
+  worldTime+=dt;for(const s of signals){s.flame.scaling.y=1.6+Math.sin(worldTime*8+s.x)*.15;s.flame.rotation.y=worldTime*.7}const oldDay=dayOf(state);advanceColony(state,dt);if(dayOf(state)!==oldDay){state.trade={day:dayOf(state)};refreshWorld();ctx.changed();ctx.persist()}
   sword.weaponClass=practice?'sword':state.equipped;styleWeapon(hero.weapon!,practice?'sword':state.equipped,scene);styleWeapon(ctx.viewWeapon,practice?'sword':state.equipped,scene);
   combat.sync();for(const e of combat.enemies)if(e.enabled&&e.health>0&&ctx.blocked(e.x,e.z)){const p=safePoint(e.x,e.z);e.x=p.x;e.z=p.z}
   if(!practice){const results:CombatEvent[]=[];for(let remaining=Math.min(dt,.5);remaining>0&&state.health>0;){const slice=Math.min(remaining,1/60);remaining-=slice;results.push(...combat.update(slice,{x:hero.root.position.x,z:hero.root.position.z,yaw},sword,ctx.blocked))}events(results)}
   if(state.health<=0){ctx.ore(-rescue(state,ctx.progress().ore));ctx.rescue();for(const e of combat.enemies){e.aggro=false;e.mode=e.health>0?'idle':'down';e.timer=1}ctx.notify('The watch brings you home','Quest items are safe. Eat, rest, or use a salve; repair damaged gear at Huno’s forge.');ctx.changed();ctx.persist()}
+  const impacts=[...combat.hazards,...combat.enemies.filter(e=>e.enabled&&e.health>0&&e.type==='firebrand'&&e.mode==='windup').map(e=>({x:e.aimX??e.x,z:e.aimZ??e.z,remaining:e.timer}))];
+  hazardRings.forEach((ring,i)=>{const h=impacts[i];ring.setEnabled(!!h);if(h){ring.position.set(h.x,terrainHeight(h.x,h.z)+.09,h.z);ring.scaling.setAll(.8+Math.max(0,1-h.remaining)*.2)}});
+  refreshWorld();
   for(let i=0;i<combat.enemies.length;i++){
    const e=combat.enemies[i],{actor,ring,warning}=actorData[i],distance=Math.hypot(e.x-hero.root.position.x,e.z-hero.root.position.z),visible=e.enabled&&e.health>0&&distance<75;
-   actor.root.setEnabled(visible);actor.weapon?.setEnabled(visible);if(!visible){ring.setEnabled(false);continue}
+   actor.root.setEnabled(visible);actor.weapon?.setEnabled(visible&&e.type!=='firebrand');if(!visible){ring.setEnabled(false);continue}
    actor.root.position.set(e.x,terrainHeight(e.x,e.z),e.z);actor.root.rotation.y=e.heading;
    const stride=e.mode==='approach'?Math.sin(worldTime*9+i)*.45:0;actor.legs[0].rotation.x=stride;actor.legs[1].rotation.x=-stride;actor.arms[1].rotation.x=e.mode==='windup'?-1.4:e.mode==='recover'?.6:e.mode==='stagger'?.8:-.2;actor.pose?.(worldTime);
-   ring.setEnabled(distance<20&&(e.mode==='windup'||e.mode==='stagger'));ring.position.set(e.x,terrainHeight(e.x,e.z)+.04,e.z);const color=e.mode==='stagger'?'#b19bd7':state.settings.highContrast?'#fff23b':'#e9a047';warning.diffuseColor=Color3.FromHexString(color);warning.emissiveColor=warning.diffuseColor.scale(.5);ring.scaling.setAll(e.mode==='windup'?1+Math.sin(worldTime*9)*.06:1);
+   ring.setEnabled(distance<20&&(e.mode==='windup'||e.mode==='stagger'));ring.position.set(e.x,terrainHeight(e.x,e.z)+.04,e.z);const color=e.mode==='stagger'?'#b19bd7':state.settings.highContrast?'#fff23b':'#e9a047';warning.diffuseColor=Color3.FromHexString(color);warning.emissiveColor=warning.diffuseColor.scale(.5);ring.scaling.setAll(e.mode==='windup'?.65+.65*(1-e.timer/enemyProfiles[e.type].windup):1);
   }
   if(state.active){
    const hour=hourOf(state),atFire=hour>=18||hour<6;
@@ -154,23 +210,23 @@ export function createColonyGame(ctx:Context){
   const t=target(),distance=t?Math.round(Math.hypot(t.x-hero.root.position.x,t.z-hero.root.position.z)):0,bearing=t?Math.atan2(t.x-hero.root.position.x,t.z-hero.root.position.z)-yaw:0;
   const arrow=['↑','↗','→','↘','↓','↙','←','↖'][((Math.round(bearing/(Math.PI/4))%8)+8)%8];
   const enemy=combat.enemies.filter(e=>e.enabled&&e.health>0&&Math.hypot(e.x-hero.root.position.x,e.z-hero.root.position.z)<9).sort((a,b)=>Math.hypot(a.x-hero.root.position.x,a.z-hero.root.position.z)-Math.hypot(b.x-hero.root.position.x,b.z-hero.root.position.z))[0];
-  const output=[timeLabel(state),t?`${arrow} ${t.label} · ${distance}m`:'I · pack, supplies & camp affairs',`${Math.ceil(state.health)} / 100 health · ${weaponProfiles[state.equipped].label} · ${Math.round(state.durability)}% gear`,enemy?`${enemy.name} · ${Math.ceil(enemy.health)} / ${enemy.maxHealth} · ${enemy.mode==='windup'?'WIND-UP — guard or dodge':enemy.mode==='stagger'?'STAGGERED — counter':'watch their reach'}`:''];
+  const output=[timeLabel(state),t?`${arrow} ${t.label} · ${distance}m`:'I · pack, supplies & camp affairs',`${Math.ceil(state.health)} / 100 health · ${weaponProfiles[state.equipped].label} · ${Math.round(state.durability)}% gear${state.durability<30?' · WORN: repair at Huno':''} · ${sword.energy<.2?'LOW ENERGY — recover':Math.round(sword.energy*100)+'% energy'}`,enemy?`${enemy.name} · ${Math.ceil(enemy.health)} / ${enemy.maxHealth} · ${enemy.mode==='windup'?(enemy.type==='firebrand'?'FIRE POT — leave the orange circle':`STRIKE IN ${enemy.timer.toFixed(1)}s — guard or dodge`):enemy.mode==='stagger'?'STAGGERED — counter':'watch their reach'}`:''];
   const key=output.join('|');if(key!==lastHud){lastHud=key;['colony-clock','colony-tracker','colony-health','colony-enemy'].forEach((id,i)=>document.getElementById(id)!.textContent=output[i]);const bar=document.getElementById('health-fill');if(bar){bar.style.width=state.health+'%';bar.parentElement!.setAttribute('aria-valuenow',String(Math.round(state.health)))}}
  }
  function decorateJournal(content:HTMLElement){
-  const h=document.createElement('h3');h.textContent='Chapter II · A mine worth fighting for';const p=document.createElement('p');p.textContent=currentObjective(state,ctx.progress().stage,ctx.progress().weapon)?.text??'Earn admission to the castle, then speak to Diego about the mine. Press I to inspect your pack.';content.append(h,p);
+  const h=document.createElement('h3');h.textContent=state.outcome==='undecided'?'Chapter II · A mine worth fighting for':'Chapter III · The Last Light';const p=document.createElement('p');p.textContent=currentObjective(state,ctx.progress().stage,ctx.progress().weapon)?.text??'Earn admission to the castle, then speak to Diego about the mine. Press I to inspect your pack.';content.append(h,p);
   for(const entry of state.log.slice(-8).reverse()){const note=document.createElement('p');note.textContent=`Shift ${entry.day+1}: ${entry.text}`;content.append(note)}
  }
  refreshWorld();
- return {get state(){return state},get isOpen(){return ledger.isOpen},get combat(){return combat},open,close,action,focus,update,target,decorateJournal,
+ return {get state(){return state},get isOpen(){return ledger.isOpen},get combat(){return combat},open,close,action,focus,update,target,decorateJournal,quickChoices,
   objective:()=>currentObjective(state,ctx.progress().stage,ctx.progress().weapon),
   strike:(sword:SwordHandling,yaw:number)=>events(combat.strike({x:hero.root.position.x,z:hero.root.position.z,yaw},state.equipped,sword.combo,ctx.blocked)),
-  reaction:(name:string)=>!state.active?'':name==='Snaf'&&state.reputation.diggers>3?'You kept the pot going. There is always a place by my fire for you.':name==='Huno'&&state.reputation.shadows>3?'You did right by this camp. Let us put that iron to work.':name==='Thorus'&&state.reputation.guards<0?'The mine was your choice. Do not expect the watch to applaud it.':name==='Grim'&&state.outcome==='sealed'?'You gave our seam to the guards. Some of us will remember that.':'',
+  reaction:(name:string)=>crisisRumor(state,name)||(!state.active?'':name==='Snaf'&&state.reputation.diggers>3?'You kept the pot going. There is always a place by my fire for you.':name==='Huno'&&state.reputation.shadows>3?'You did right by this camp. Let us put that iron to work.':name==='Thorus'&&state.reputation.guards<0?'The mine was your choice. Do not expect the watch to applaud it.':name==='Grim'&&state.outcome==='sealed'?'You gave our seam to the guards. Some of us will remember that.':''),
   threats:()=>combat.enemies.filter(e=>e.enabled&&e.health>0&&e.aggro).map(e=>new Vector3(e.x,terrainHeight(e.x,e.z),e.z)),
   daylight:()=>.42+.58*Math.max(0,Math.sin((hourOf(state)-6)/12*Math.PI)),
   load(value:unknown){state=normalizeColony(value);if(state.trade.day!==dayOf(state))state.trade={day:dayOf(state)};combat=new ValleyCombat(state);tracked=null;lastHud='';restoreEnergy=false;for(const p of people){p.root.position.copyFrom(p.home);p.root.metadata=null}refreshWorld();if(ledger.isOpen)ledger.refresh()},
   activity:(name:string)=>!state.active?'':name==='Thorus'?'On watch':name==='Snaf'?'Tending the pot':hourOf(state)>=18||hourOf(state)<6?'Off shift · heading to supper':'Working the day shift',
-  drawMap(c:CanvasRenderingContext2D,px:(x:number)=>number,pz:(z:number)=>number){c.save();c.font='10px Georgia';for(const site of sites)if(state.discovered.includes(site.id)&&siteAvailable(state,site)){c.fillStyle=site.kind==='cache'?'#734883':'#3e6650';c.fillRect(px(site.x)-3,pz(site.z)-3,6,6)}for(const e of combat.enemies)if(e.enabled&&e.health>0&&state.discovered.includes(e.group==='road'?'road':e.group==='mine'?'mine-crew':'watch-board')){c.fillStyle='#9b3025';c.beginPath();c.arc(px(e.x),pz(e.z),3,0,Math.PI*2);c.fill()}const t=target();if(t){c.strokeStyle='#8b6524';c.lineWidth=2;c.beginPath();c.arc(px(t.x),pz(t.z),7,0,Math.PI*2);c.stroke();c.fillStyle='#4a3822';c.fillText(t.label,px(t.x),pz(t.z)-11)}c.restore()},
-  discover(){for(const s of sites)if(!state.discovered.includes(s.id)&&Math.hypot(s.x-hero.root.position.x,s.z-hero.root.position.z)<18)state.discovered.push(s.id);for(const e of combat.enemies)if(e.enabled&&Math.hypot(e.x-hero.root.position.x,e.z-hero.root.position.z)<18){const id=e.group==='road'?'road':e.group==='mine'?'mine-crew':'watch-board';if(!state.discovered.includes(id))state.discovered.push(id)}},
-  diagnostics:()=>({state:JSON.parse(JSON.stringify(state)),enemies:combat.enemies.map(e=>({...e})),sites:sites.map(s=>({id:s.id,kind:s.kind,x:s.x,z:s.z,available:siteAvailable(state,s)})),residents:people.map(p=>({name:p.name,x:p.root.position.x,z:p.root.position.z})),target:target(),open:ledger.isOpen})};
+  drawMap(c:CanvasRenderingContext2D,px:(x:number)=>number,pz:(z:number)=>number){c.save();c.font='10px Georgia';if(state.crisis.stage!=='dormant')for(const signal of signals){c.fillStyle=state.crisis.repaired.includes(signal.id)?'#af7b2d':'#625343';c.beginPath();c.arc(px(signal.x),pz(signal.z),4,0,Math.PI*2);c.fill();c.fillText(signal.label,px(signal.x)+6,pz(signal.z)-5)}for(const site of sites)if(state.discovered.includes(site.id)&&siteAvailable(state,site)){c.fillStyle=site.kind==='cache'?'#734883':'#3e6650';c.fillRect(px(site.x)-3,pz(site.z)-3,6,6)}for(const e of combat.enemies)if(e.enabled&&e.health>0&&state.discovered.includes(e.group==='road'?'road':e.group==='mine'?'mine-crew':e.group==='signal'?'signal-road':e.group==='patrol'?'patrol':'watch-board')){c.fillStyle='#9b3025';c.beginPath();c.arc(px(e.x),pz(e.z),3,0,Math.PI*2);c.fill()}const t=target();if(t){c.strokeStyle='#8b6524';c.lineWidth=2;c.beginPath();c.arc(px(t.x),pz(t.z),7,0,Math.PI*2);c.stroke();c.fillStyle='#4a3822';c.fillText(t.label,px(t.x),pz(t.z)-11)}c.restore()},
+  discover(){for(const s of sites)if(!state.discovered.includes(s.id)&&Math.hypot(s.x-hero.root.position.x,s.z-hero.root.position.z)<18)state.discovered.push(s.id);for(const e of combat.enemies)if(e.enabled&&Math.hypot(e.x-hero.root.position.x,e.z-hero.root.position.z)<18){const id=e.group==='road'?'road':e.group==='mine'?'mine-crew':e.group==='signal'?'signal-road':e.group==='patrol'?'patrol':'watch-board';if(!state.discovered.includes(id))state.discovered.push(id)}},
+  diagnostics:()=>({state:JSON.parse(JSON.stringify(state)),enemies:combat.enemies.map(e=>({...e})),signals:signals.map(s=>({id:s.id,x:s.x,z:s.z,repaired:state.crisis.repaired.includes(s.id)})),hazards:combat.hazards,sites:sites.map(s=>({id:s.id,kind:s.kind,x:s.x,z:s.z,available:siteAvailable(state,s)})),residents:people.map(p=>({name:p.name,x:p.root.position.x,z:p.root.position.z})),target:target(),open:ledger.isOpen})};
 }

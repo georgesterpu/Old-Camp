@@ -12,7 +12,7 @@ const state=()=>evaluate('campTest.colony()');
 const shot=async name=>{await evaluate('campTest.render()');const r=await send('Page.captureScreenshot',{format:'png'});writeFileSync(`docs/alpha2-${name}.png`,Buffer.from(r.data,'base64'))};
 await send('Runtime.enable');await send('Page.enable');await evaluate('sessionStorage.clear()');await reload();await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 await click('#enter');await evaluate('campTest.reset();campTest.render()');
-assert.equal(await evaluate("document.querySelector('.alpha-stamp').textContent"),'ALPHA II · SUPPLY & CONSEQUENCE');
+assert.equal(await evaluate("document.querySelector('.alpha-stamp').textContent"),'ALPHA III · THE LAST LIGHT');
 await click('#pack-button');assert.equal((await state()).open,true);await shot('pack');
 await evaluate('campTest.advance(.3,["KeyW"])');assert.equal((await evaluate('campDiagnostics()')).running,false,'Pack suspends gameplay');
 await click('[data-close]');

@@ -1,11 +1,12 @@
 /** The second chapter's rules. No renderer, DOM or wall clock: saves and tests use the same simulation. */
+import {freshCrisis,normalizeCrisis,crisisObjective,crisisRumor,type CrisisSave} from './escalation';
 export const DAY_SECONDS=900;
 export type Resource='wood'|'iron'|'herb'|'ration'|'salve';
 export type Faction='diggers'|'shadows'|'guards';
 export type WeaponClass='sword'|'axe'|'spear';
 export type MineOutcome='undecided'|'opened'|'sealed';
 export interface ColonySave {
- version:1;clock:number;health:number;inventory:Record<Resource,number>;
+ version:1;crisis:CrisisSave;clock:number;health:number;inventory:Record<Resource,number>;
  reputation:Record<Faction,number>;stocks:{food:number;tools:number;watch:number};
  aid:{food:boolean;tools:boolean;watch:boolean};active:boolean;mineCleared:boolean;outcome:MineOutcome;
  equipped:WeaponClass;weapons:WeaponClass[];upgrade:number;durability:number;
@@ -14,7 +15,7 @@ export interface ColonySave {
  watch:{active:boolean;wave:number;wins:number};log:{day:number;text:string}[];
  settings:{reducedMotion:boolean;highContrast:boolean;explorer:boolean};
 }
-export const freshColony=():ColonySave=>({version:1,clock:0,health:100,inventory:{wood:0,iron:0,herb:0,ration:2,salve:1},reputation:{diggers:0,shadows:0,guards:0},stocks:{food:2,tools:2,watch:2},aid:{food:false,tools:false,watch:false},active:false,mineCleared:false,outcome:'undecided',equipped:'sword',weapons:['sword'],upgrade:0,durability:100,gathered:{},caches:[],enemies:{},contracts:{},trade:{},discovered:[],watch:{active:false,wave:0,wins:0},log:[],settings:{reducedMotion:false,highContrast:false,explorer:false}});
+export const freshColony=():ColonySave=>({version:1,crisis:freshCrisis(),clock:0,health:100,inventory:{wood:0,iron:0,herb:0,ration:2,salve:1},reputation:{diggers:0,shadows:0,guards:0},stocks:{food:2,tools:2,watch:2},aid:{food:false,tools:false,watch:false},active:false,mineCleared:false,outcome:'undecided',equipped:'sword',weapons:['sword'],upgrade:0,durability:100,gathered:{},caches:[],enemies:{},contracts:{},trade:{},discovered:[],watch:{active:false,wave:0,wins:0},log:[],settings:{reducedMotion:false,highContrast:false,explorer:false}});
 export const resourceNames:Record<Resource,string>={wood:'Timber',iron:'Iron scrap',herb:'Bitterleaf',ration:'Rations',salve:'Healing salves'};
 export const weaponProfiles={sword:{label:'Camp sword',damage:15,range:2.7,windup:.18,recovery:.65,cost:.25},axe:{label:'Woodcutter’s axe',damage:24,range:2.3,windup:.32,recovery:.92,cost:.34},spear:{label:'Watch spear',damage:13,range:3.6,windup:.23,recovery:.76,cost:.23}} as const;
 export const dayOf=(s:ColonySave)=>Math.floor(s.clock/DAY_SECONDS);
@@ -25,7 +26,7 @@ const bounded=(v:unknown,max:number)=>typeof v==='number'&&Number.isFinite(v)&&v
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 /** Tolerant for local recovery; portable imports use strict validation below. */
 export function normalizeColony(value:unknown):ColonySave {
- const base=freshColony();if(!record(value))return base;
+ const base=freshColony();if(!record(value))return base;base.crisis=normalizeCrisis(value.crisis);
  for(const k of ['clock','health','upgrade','durability'] as const)if(bounded(value[k],k==='clock'?1e9:k==='upgrade'?3:100))base[k]=k==='upgrade'?Math.floor(value[k] as number):value[k] as number;
  for(const k of ['active','mineCleared'] as const)if(typeof value[k]==='boolean')base[k]=value[k];
  for(const k of ['inventory','reputation','stocks'] as const)if(record(value[k]))for(const field of Object.keys(base[k])){const n=value[k][field];if(typeof n==='number'&&Number.isInteger(n)&&n>=(k==='reputation'?-100:0)&&n<=(k==='inventory'?999:100))Object.assign(base[k],{[field]:n})}
@@ -41,7 +42,8 @@ export function normalizeColony(value:unknown):ColonySave {
  // Impossible campaign states cannot unlock rewards on a corrupt local save.
  if(!base.active){base.mineCleared=false;base.outcome='undecided';base.watch.active=false}
  if(base.outcome!=='undecided'&&!base.mineCleared)base.outcome='undecided';
- if(base.outcome==='undecided')base.watch.active=false;
+ if(base.outcome==='undecided'){base.watch.active=false;base.crisis=freshCrisis()}
+ if(base.crisis.stage==='assault')base.watch.active=false;
  return base;
 }
 export function validColony(value:unknown){
@@ -49,7 +51,7 @@ export function validColony(value:unknown){
  // Normalizing and comparing known fields validates types, ranges and invariants.
  const normalized=normalizeColony(value);
  const ordered=(v:unknown):unknown=>Array.isArray(v)?v.map(ordered):record(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordered(v[k])])):v;
- return Object.keys(normalized).every(k=>JSON.stringify(ordered(value[k]))===JSON.stringify(ordered(normalized[k as keyof ColonySave])));
+ return Object.keys(normalized).every(k=>k==='crisis'&&value.crisis===undefined||JSON.stringify(ordered(value[k]))===JSON.stringify(ordered(normalized[k as keyof ColonySave])));
 }
 export function logEvent(s:ColonySave,text:string){s.log.push({day:dayOf(s),text});if(s.log.length>24)s.log.shift()}
 export function standing(s:ColonySave,f:Faction,amount:number){s.reputation[f]=Math.max(-100,Math.min(100,s.reputation[f]+amount))}
@@ -58,6 +60,7 @@ export function advanceColony(s:ColonySave,dt:number){
  if(!s.active||before===dayOf(s))return;
  const elapsed=dayOf(s)-before;
  for(const k of ['food','tools','watch'] as const)s.stocks[k]=Math.max(0,s.stocks[k]-elapsed*(s.outcome==='opened'&&k==='tools'?2:1));
+ if(s.crisis.stage==='complete'){const k=s.crisis.charter==='commons'?'food':'watch';s.stocks[k]=Math.min(10,s.stocks[k]+elapsed*2);logEvent(s,`The signal-road caravan brings ${k==='food'?'grain for the communal pot':'supplies for the road watch'}.`)}
  logEvent(s,s.stocks.food===0?'The communal pot is empty. Snaf is looking for provisions.':s.stocks.watch===0?'The watch is stretched thin. Road patrols are paying more.':'A new shift begins. The market restocks and old gathering sites recover.');
 }
 export function price(s:ColonySave,base:number){const rep=Math.max(-20,Math.min(40,s.reputation.shadows)),shortage=dayOf(s)%3===2?1.15:1;return Math.max(1,Math.ceil(base/2),Math.ceil(base*shortage)-Math.floor(Math.max(0,rep)/20)+Math.ceil(Math.max(0,-rep)/20))}
@@ -82,7 +85,7 @@ export function useSupply(s:ColonySave,item:'salve'|'ration'){
  if(s.health>=100||s.inventory[item]===0)return false;s.inventory[item]--;s.health=Math.min(100,s.health+(item==='salve'?50:22));return true;
 }
 export function rescue(s:ColonySave,ore:number){
- const lost=Math.min(6,Math.ceil(ore*.2));s.health=65;s.durability=Math.max(0,s.durability-12);s.watch.active=false;
+ const lost=Math.min(6,Math.ceil(ore*.2));if(s.crisis.stage==='assault')s.crisis.stage='signals';s.health=65;s.durability=Math.max(0,s.durability-12);s.watch.active=false;
  logEvent(s,`The camp watch brings you home. ${lost} ore lost; your gear needs attention. Quest items are safe.`);return lost;
 }
 export interface GatheringSite {id:string;label:string;kind:Resource|'cache'|'watch';x:number;z:number;amount:number;clue?:string}
@@ -112,6 +115,8 @@ export function currentObjective(s:ColonySave,stage:number,hasWeapon:boolean){
  if(stage<3)return null;
  if(!hasWeapon)return {text:'Earn a blade from Huno before taking on the mine crisis.',x:22,z:-23,label:'Huno · earn a blade'};
  if(!s.active)return {text:'Ask Diego about the old mine supply crisis.',x:-13,z:-28,label:'Diego · camp affairs'};
+ if(s.watch.active)return {text:`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`,x:101,z:82,label:'Ruined watch · defend the beacon'};
+ const crisis=crisisObjective(s);if(crisis)return crisis;
  if(s.outcome!=='undecided')return {text:s.watch.active?`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`:'The camp has changed. Take new supply contracts, upgrade your weapon, or light the ruined watch beacon.',x:101,z:82,label:'Ruined watch · repeatable challenge'};
  if(!s.aid.food)return {text:'Stock Snaf’s pot: bring 2 rations. Cook or trade for them.',x:-17,z:-29,label:'Snaf · supply the pot'};
  if(!s.aid.tools)return {text:'Help Huno replace the tools: 2 timber + 2 iron scrap.',x:22,z:-23,label:'Huno · replacement tools'};
@@ -121,6 +126,7 @@ export function currentObjective(s:ColonySave,stage:number,hasWeapon:boolean){
  return {text:s.watch.active?`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`:'The camp has changed. Take new supply contracts, upgrade your weapon, or light the ruined watch beacon.',x:101,z:82,label:'Ruined watch · repeatable challenge'};
 }
 export function rumor(s:ColonySave,name:string){
+ const news=crisisRumor(s,name);if(news)return news;
  if(name==='Huno')return s.outcome==='opened'?'The diggers are bringing real iron back. Mine piles now yield extra scrap.':'The mine’s overseer fights behind a guard. An axe can break it; a spear can keep you out of his reach.';
  if(name==='Fisk')return 'An old waybill lies in a cache beyond the high road. I can sell supplies, but the market only restocks each shift. Shadows’ standing brings better prices.';
  if(name==='Snaf')return s.stocks.food===0?'The pot is empty. A pair of rations feeds the next shift.':'Bitterleaf and dry timber make a trail ration. Two bitterleaf make a salve. Ask me to cook them at the pot.';

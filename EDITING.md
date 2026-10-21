@@ -74,6 +74,11 @@ port 9223; `bun test` does not. Run `node scripts/appearance-browser-test.mjs`
 with an offline game tab opened using `?qa&still` to check customization.
 Launch test browsers with `--mute-audio`.
 
+Run `node scripts/escalation-browser-test.mjs` for the third chapter: real signal repairs,
+beacon defense through ordinary strikes, direct services, both charters, saves and mobile UI.
+The pure third-chapter rules live in `src/escalation.ts`; `scripts/escalation.test.ts` covers
+migration, atomic costs, siege failure/retry, recurring consequences and patrol shifts.
+
 Run `node scripts/colony-browser-test.mjs` for the mine-chapter playthrough.
 This script resets only the dedicated test browser's journey, supplies a completed
 tutorial fixture, and then uses the real gathering, trade, crafting and combat actions.
