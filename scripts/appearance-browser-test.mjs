@@ -10,7 +10,8 @@ const send=(method,params={})=>new Promise((resolve,reject)=>{const i=++id;pendi
 const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||'Browser exception');return r.result.value};
 const shot=async path=>{await evaluate('campTest.render()');const r=await send('Page.captureScreenshot',{format:'png'});writeFileSync(path,Buffer.from(r.data,'base64'))};
 const ready=async()=>{for(let i=0;i<100;i++){if(await evaluate('!!window.campTest'))return;await new Promise(r=>setTimeout(r,200))}throw Error('Game did not initialize')};
-await send('Runtime.enable');await send('Page.enable');await evaluate('sessionStorage.clear()');await send('Page.reload');
+const reload=async()=>{await evaluate('delete window.campTest;delete window.campDiagnostics');await send('Page.reload');await ready()};
+await send('Runtime.enable');await send('Page.enable');await evaluate('sessionStorage.clear()');await reload();
 await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 await ready();
 if(process.argv.includes('--gallery')){
@@ -42,7 +43,7 @@ await evaluate("document.getElementById('appearance-portrait').click()");await s
 await evaluate("document.getElementById('appearance-save').click()");
 assert.deepEqual(await evaluate("campTest.appearances().find(p=>p.name==='Nameless Hero').appearance"),changed,'Apply updates the live player');
 assert.deepEqual(await evaluate("JSON.parse(localStorage.getItem('old-camp-progress')).appearance"),changed,'Apply persists the complete appearance');
-await send('Page.reload');await ready();
+await reload();
 assert.deepEqual(await evaluate("campTest.appearances().find(p=>p.name==='Nameless Hero').appearance"),changed,'Appearance survives reload');
 assert.deepEqual((await evaluate('campTest.appearances()')).slice(0,12),initial.slice(0,12),'Resident identities survive reload');
 await evaluate("document.getElementById('appearance-start').click()");

@@ -39,6 +39,10 @@ for playing the built game. Normal editing and building require Bun only.
 | `src/customization.ts` | Hero appearance controls and the isolated preview scene |
 | `src/wildlife.ts` | Ravens, deer, hares, butterflies, and their behavior |
 | `src/sword.ts` | Strike timing, recovery, energy, and guarding |
+| `src/colony.ts` | Serializable economy, camp stores, reputation, gathering and chapter II rules |
+| `src/valley-combat.ts` | Enemy archetypes, group tactics, parries, dodges and repeatable watch waves |
+| `src/colony-game.ts` | Chapter II actors, resource sites, routines, consequences, HUD and map tracking |
+| `src/camp-ledger.ts`, `src/colony.css` | Pack, services, camp affairs, field notes and accessibility controls |
 | `src/expedition.ts` | Quest items, herbs, hammer, and waymarkers |
 | `src/index.html` | Menus, HUD, journal, map panel, and styling |
 | `src/audio.ts`, `src/music.ts` | Synthesized ambience, effects, and original score |
@@ -69,6 +73,16 @@ The browser regression scripts require a separate Chrome DevTools session on
 port 9223; `bun test` does not. Run `node scripts/appearance-browser-test.mjs`
 with an offline game tab opened using `?qa&still` to check customization.
 Launch test browsers with `--mute-audio`.
+
+Run `node scripts/colony-browser-test.mjs` for the mine-chapter playthrough.
+This script resets only the dedicated test browser's journey, supplies a completed
+tutorial fixture, and then uses the real gathering, trade, crafting and combat actions.
+`bun test` includes the pure economy, save and combat rules without needing a browser.
+
+`src/colony.css` is embedded by `scripts/build.ts` at the `COLONY_STYLES` marker in
+the HTML template. A successful build refreshes both standalone HTML copies. During
+active gameplay development, rebuild after each meaningful playable addition so testers
+refreshing `old-camp.html` receive the current mechanics.
 
 ## Saves, assets, and credits
 

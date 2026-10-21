@@ -26,14 +26,14 @@ const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&
 /** Tolerant for local recovery; portable imports use strict validation below. */
 export function normalizeColony(value:unknown):ColonySave {
  const base=freshColony();if(!record(value))return base;
- for(const k of ['clock','health','upgrade','durability'] as const)if(bounded(value[k],k==='clock'?1e9:k==='upgrade'?3:100))base[k]=value[k] as number;
+ for(const k of ['clock','health','upgrade','durability'] as const)if(bounded(value[k],k==='clock'?1e9:k==='upgrade'?3:100))base[k]=k==='upgrade'?Math.floor(value[k] as number):value[k] as number;
  for(const k of ['active','mineCleared'] as const)if(typeof value[k]==='boolean')base[k]=value[k];
  for(const k of ['inventory','reputation','stocks'] as const)if(record(value[k]))for(const field of Object.keys(base[k])){const n=value[k][field];if(typeof n==='number'&&Number.isInteger(n)&&n>=(k==='reputation'?-100:0)&&n<=(k==='inventory'?999:100))Object.assign(base[k],{[field]:n})}
  for(const k of ['aid','settings'] as const)if(record(value[k]))for(const field of Object.keys(base[k]))if(typeof value[k][field]==='boolean')Object.assign(base[k],{[field]:value[k][field]});
  if(['undecided','opened','sealed'].includes(value.outcome as string))base.outcome=value.outcome as MineOutcome;
  if(Array.isArray(value.weapons)){base.weapons=[...new Set(value.weapons.filter((v):v is WeaponClass=>['sword','axe','spear'].includes(v as string)))];if(!base.weapons.includes('sword'))base.weapons.unshift('sword')}
  if(base.weapons.includes(value.equipped as WeaponClass))base.equipped=value.equipped as WeaponClass;
- for(const k of ['gathered','contracts','trade'] as const)if(record(value[k]))for(const [id,n] of Object.entries(value[k]).slice(0,100))if(/^[a-z0-9-]{1,40}$/.test(id)&&bounded(n,1e9))base[k][id]=n as number;
+ for(const k of ['gathered','contracts','trade'] as const)if(record(value[k]))for(const [id,n] of Object.entries(value[k]).slice(0,100))if(/^[a-z0-9-]{1,40}$/.test(id)&&bounded(n,1e9))base[k][id]=Math.floor(n as number);
  if(record(value.enemies))for(const [id,e] of Object.entries(value.enemies).slice(0,50))if(/^[a-z0-9-]{1,40}$/.test(id)&&record(e)&&bounded(e.health,1000)&&bounded(e.day,2e6))base.enemies[id]={health:e.health as number,day:e.day as number};
  for(const k of ['caches','discovered'] as const)if(Array.isArray(value[k]))base[k]=[...new Set(value[k].filter((id):id is string=>typeof id==='string'&&/^[a-z0-9-]{1,40}$/.test(id)))].slice(0,60);
  if(record(value.watch)){base.watch={active:value.watch.active===true,wave:bounded(value.watch.wave,2)?Math.floor(value.watch.wave as number):0,wins:bounded(value.watch.wins,999)?Math.floor(value.watch.wins as number):0}}
@@ -48,7 +48,8 @@ export function validColony(value:unknown){
  if(!record(value)||value.version!==1)return false;
  // Normalizing and comparing known fields validates types, ranges and invariants.
  const normalized=normalizeColony(value);
- return Object.keys(normalized).every(k=>JSON.stringify(value[k])===JSON.stringify(normalized[k as keyof ColonySave]));
+ const ordered=(v:unknown):unknown=>Array.isArray(v)?v.map(ordered):record(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordered(v[k])])):v;
+ return Object.keys(normalized).every(k=>JSON.stringify(ordered(value[k]))===JSON.stringify(ordered(normalized[k as keyof ColonySave])));
 }
 export function logEvent(s:ColonySave,text:string){s.log.push({day:dayOf(s),text});if(s.log.length>24)s.log.shift()}
 export function standing(s:ColonySave,f:Faction,amount:number){s.reputation[f]=Math.max(-100,Math.min(100,s.reputation[f]+amount))}
@@ -59,7 +60,7 @@ export function advanceColony(s:ColonySave,dt:number){
  for(const k of ['food','tools','watch'] as const)s.stocks[k]=Math.max(0,s.stocks[k]-elapsed*(s.outcome==='opened'&&k==='tools'?2:1));
  logEvent(s,s.stocks.food===0?'The communal pot is empty. Snaf is looking for provisions.':s.stocks.watch===0?'The watch is stretched thin. Road patrols are paying more.':'A new shift begins. The market restocks and old gathering sites recover.');
 }
-export function price(s:ColonySave,base:number){const rep=Math.max(-20,Math.min(40,s.reputation.shadows));const shortage=dayOf(s)%3===1?1.15:1;return Math.max(1,Math.ceil(base*(1-rep/200)*shortage))}
+export function price(s:ColonySave,base:number){const rep=Math.max(-20,Math.min(40,s.reputation.shadows)),shortage=dayOf(s)%3===2?1.15:1;return Math.max(1,Math.ceil(base/2),Math.ceil(base*shortage)-Math.floor(Math.max(0,rep)/20)+Math.ceil(Math.max(0,-rep)/20))}
 export function canPay(s:ColonySave,cost:Partial<Record<Resource,number>>){return Object.entries(cost).every(([k,n])=>s.inventory[k as Resource]>=n!)}
 export function pay(s:ColonySave,cost:Partial<Record<Resource,number>>){if(!canPay(s,cost))return false;for(const [k,n] of Object.entries(cost))s.inventory[k as Resource]-=n!;return true}
 export function addResource(s:ColonySave,k:Resource,n:number){s.inventory[k]=Math.min(999,s.inventory[k]+n)}
@@ -99,7 +100,7 @@ export const gatheringSites:GatheringSite[]=[
  {id:'cache-shrine',label:'Pilgrim’s hidden coffer',kind:'cache',x:-98,z:-118,amount:1,clue:'The shrine’s inscription names a north-facing stone. Beneath it: a pilgrim’s salves and a note about the mine’s overseer.'},
  {id:'cache-road',label:'Smuggler’s road cache',kind:'cache',x:-9,z:164,amount:1,clue:'Fisk’s waybill reveals the old mine was closed to conceal a private ore levy, not because its seam was exhausted.'},
  {id:'cache-river',label:'Ferryman’s sealed chest',kind:'cache',x:91,z:-92,amount:1,clue:'The ferryman’s ledger records ore leaving the valley without the diggers being paid. Diego should see this.'},
- {id:'watch-board',label:'The ruined watch beacon',kind:'watch',x:100,z:99,amount:1}
+ {id:'watch-board',label:'The ruined watch beacon',kind:'watch',x:101,z:82,amount:1}
 ];
 export function siteAvailable(s:ColonySave,site:GatheringSite){if(site.kind==='watch')return true;if(site.kind==='cache')return !s.caches.includes(site.id);return s.gathered[site.id]===undefined||dayOf(s)-s.gathered[site.id]>=2}
 export function gather(s:ColonySave,id:string){
@@ -111,12 +112,13 @@ export function currentObjective(s:ColonySave,stage:number,hasWeapon:boolean){
  if(stage<3)return null;
  if(!hasWeapon)return {text:'Earn a blade from Huno before taking on the mine crisis.',x:22,z:-23,label:'Huno · earn a blade'};
  if(!s.active)return {text:'Ask Diego about the old mine supply crisis.',x:-13,z:-28,label:'Diego · camp affairs'};
+ if(s.outcome!=='undecided')return {text:s.watch.active?`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`:'The camp has changed. Take new supply contracts, upgrade your weapon, or light the ruined watch beacon.',x:101,z:82,label:'Ruined watch · repeatable challenge'};
  if(!s.aid.food)return {text:'Stock Snaf’s pot: bring 2 rations. Cook or trade for them.',x:-17,z:-29,label:'Snaf · supply the pot'};
  if(!s.aid.tools)return {text:'Help Huno replace the tools: 2 timber + 2 iron scrap.',x:22,z:-23,label:'Huno · replacement tools'};
  if(!s.aid.watch)return {text:'Supply Thorus’s watch (1 timber + 1 iron), or clear the north-road patrol.',x:-2.7,z:-10,label:'Thorus · arm the watch'};
  if(!s.mineCleared)return {text:'Break the overseer’s hold on the old mine. Bring healing supplies.',x:-128,z:96,label:'Old mine · armed crew'};
  if(s.outcome==='undecided')return {text:'Return to Diego. Reopen the mine for the diggers, or seal it for the watch.',x:-13,z:-28,label:'Diego · decide the mine’s future'};
- return {text:s.watch.active?`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`:'The camp has changed. Take new supply contracts, upgrade your weapon, or light the ruined watch beacon.',x:100,z:99,label:'Ruined watch · repeatable challenge'};
+ return {text:s.watch.active?`Night watch: survive wave ${s.watch.wave+1} of 3. Retreat to the camp if needed.`:'The camp has changed. Take new supply contracts, upgrade your weapon, or light the ruined watch beacon.',x:101,z:82,label:'Ruined watch · repeatable challenge'};
 }
 export function rumor(s:ColonySave,name:string){
  if(name==='Huno')return s.outcome==='opened'?'The diggers are bringing real iron back. Mine piles now yield extra scrap.':'The mine’s overseer fights behind a guard. An axe can break it; a spear can keep you out of his reach.';

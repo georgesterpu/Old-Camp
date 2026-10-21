@@ -25,6 +25,14 @@ Tab: draw / sheathe       F or left click: strike
 Q or right click: hold guard                    P: hide HUD
 R: return to the north gate
 
+ALPHA II CONTROLS
+I: pack, equipment, trade, camp affairs and field notes
+C: dodge (costs energy)   Fresh Q / right-click guard: timed parry
+Touch buttons also include dodge and healing.
+Standard gamepad: left stick move, right stick look, left-stick press sprint,
+A jump, X interact, Y draw, RT strike, LT guard, B dodge, Start pause, Back pack.
+Menus use keyboard, mouse or touch.
+
 A FIRST ADVENTURE
 Meet Diego west of the entrance lane and earn a place in the castle.
 Ask Huno at the eastern smithy for work. Recover his hammer from the
@@ -34,6 +42,18 @@ Scatty offers practice bouts at the arena: first to three clean hits.
 Hold guard toward his attack or move out of reach when he winds up.
 Use the map and waymarkers to explore the five landmarks beyond the walls.
 Deer, hares, ravens and butterflies are peaceful; animals flee when approached.
+
+ALPHA II: A MINE WORTH FIGHTING FOR
+After earning castle admission and Huno's blade, return to Diego and choose
+"Supplies, trade and camp news". Begin the mine expedition in Camp affairs.
+Supply Snaf's pot, Huno's tools and Thorus's watch, or defeat the north-road levy.
+Use ore for trade, repairs, weapon tempering and forging an axe or spear.
+Press I and use Find timber / iron / bitterleaf to track gathering sites.
+Sites recover after two shifts. Rest at Snaf's fire to start a new shift.
+Drive the overseer from the mine, then decide its future with Diego. Both
+resolutions change the valley and unlock the repeatable ruined-watch challenge.
+If defeated, the watch brings you home; campaign decisions and quest items stay.
+Field notes includes Explorer mode, reduced motion, high contrast and rumours.
 
 YOUR JOURNEY
 Progress saves automatically in the same browser on this computer.

@@ -4,7 +4,7 @@ if(!result.success) throw new AggregateError(result.logs,'Build failed');
 const license=await readFile('licenses/Babylon.js.txt','utf8');
 const notice=await readFile('licenses/Babylon.js-NOTICE.txt','utf8');
 const js='/* Babylon.js\n'+license+'\n'+notice+'\n*/\n'+await result.outputs[0].text();
-const template=await readFile('src/index.html','utf8');
+const template=(await readFile('src/index.html','utf8')).replace('/* COLONY_STYLES */',await readFile('src/colony.css','utf8'));
 const html=template.replace('<script type="module" src="./main.ts"></script>',()=>`<script type="module">${js.replace(/<\/script/gi,'<\\/script')}</script>`);
 await mkdir('dist',{recursive:true});
 await writeFile('dist/index.html.tmp',html);
