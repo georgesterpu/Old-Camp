@@ -169,6 +169,12 @@ resolution, mipmaps, and anisotropic filtering. High graphics uses native displa
 (up to 2× device pixel ratio), antialiasing, surface relief, and detailed shadows. Balanced reduces
 effects for slower machines. No pixel-art or nearest-neighbour texture filter is used.
 
+The player uses a distance-driven walk/run cycle with planted support feet, ankle
+articulation and terrain-aware leg IK. Walking is 1.8 metres per second; Shift still
+reaches the existing 7.2 metre-per-second sprint immediately. Gait transitions blend
+without resetting the step, and the torso absorbs most pelvis movement to steady the
+head. There is no added camera bob. See [locomotion verification](docs/gait-verification.md).
+
 ## Character appearances
 
 Residents have stable individual complexions, face and nose shapes, haircuts, hair colours,
@@ -228,12 +234,18 @@ Open http://127.0.0.1:4317/ for the local preview. Stop it with **Ctrl+C**.
 Rebuild after editing source files; the preview reloads after a successful build.
 Builds replace files atomically. `bun run package` rebuilds the Windows sharing ZIP.
 Packaging requires Python 3; the wrapper finds PATH, PYTHON, the Windows launcher or an existing uv interpreter. Ordinary development requires Bun only.
+Node.js and npm are not required. Type-checking explicitly uses Bun, and browser
+checks can be run with `bun scripts/<test-name>.mjs`.
 
 The browser regression scripts connect to a local Chrome DevTools endpoint on port 9223:
 `browser-test.mjs`, `expedition-browser-test.mjs`, `controls-browser-test.mjs`,
 `appearance-browser-test.mjs`, `colony-browser-test.mjs`, `escalation-browser-test.mjs`,
 `campaign-browser-test.mjs`, and `package-browser-test.mjs`.
 Open the game with `?qa` for the test hooks, or `?qa&still` for single-frame inspection.
+Generated browser screenshots go to `.cache`. The Firefox texture regression uses
+WebDriver BiDi on port 9224: `bun scripts/firefox-texture-browser-test.mjs`.
+See [Firefox texture verification](docs/texture-verification.md) for the loading
+and retry checks.
 QA hooks are absent during a normal launch. Test browsers should use `--mute-audio`.
 
 The final package is tested directly with a file URL and external requests blocked.

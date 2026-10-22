@@ -1,4 +1,5 @@
 import { Scene, Texture } from '@babylonjs/core';
+import {loadEmbeddedTexture} from './embedded-texture';
 import stone from '../assets/textures/stone-diff.webp';
 import stoneN from '../assets/textures/stone-normal.webp';
 import wood from '../assets/textures/wood-diff.webp';
@@ -20,8 +21,9 @@ export type SurfaceSet=Record<SurfaceName,{color:Texture;normal:Texture}>;
 export async function createSurfaces(scene:Scene):Promise<SurfaceSet>{
  const result={} as SurfaceSet;
  for(const [name,url,normalURL] of [['stone',stone,stoneN],['wood',wood,woodN],['roof',roof,roofN],['mud',mud,mudN],['rock',rock,rockN],['bark',bark,barkN],['leather',leather,leatherN],['fabric',fabric,fabricN]] as const){
-  const color=new Texture(url,scene,false,false,Texture.TRILINEAR_SAMPLINGMODE);
-  const normal=new Texture(normalURL,scene,false,false,Texture.TRILINEAR_SAMPLINGMODE);
+  // Load in sequence to limit peak decode memory on browser reloads.
+  const color=await loadEmbeddedTexture(scene,url,name+' color');
+  const normal=await loadEmbeddedTexture(scene,normalURL,name+' normal');
   for(const texture of [color,normal]){texture.wrapU=texture.wrapV=Texture.WRAP_ADDRESSMODE;texture.anisotropicFilteringLevel=16;}
   normal.gammaSpace=false;normal.level=name==='mud'?.5:.65;result[name]={color,normal};
  }

@@ -1,11 +1,12 @@
 import { Scene, Mesh, MeshBuilder, VertexData, Vector3, Color3, StandardMaterial, DynamicTexture, TransformNode, PointLight, DirectionalLight, ShadowGenerator, Texture, Vector4, VertexBuffer } from '@babylonjs/core';
 import {createCharacterFactory} from './characters';
+import type {GaitPose} from './gait';
 import type {Appearance} from './appearance';
 import {buildWilderness} from './wilderness';
 import type { SurfaceSet } from './surfaces';
 import { terrainHeight, createMountainRidges, addGroundCover } from './terrain';
 export interface Obstacle {x:number;z:number;w:number;d:number;a:number;height?:number;floor?:number;cameraOnly?:boolean}
-export interface Person {readonly appearance:Appearance;setAppearance:(value:Appearance)=>void;name:string;role:string;root:TransformNode;arms:TransformNode[];legs:TransformNode[];home:Vector3;phase:number;pose?:(t:number,moving?:boolean)=>void;weapon?:TransformNode;setWeapon?:(drawn:boolean,guard?:boolean)=>void}
+export interface Person {readonly appearance:Appearance;setAppearance:(value:Appearance)=>void;name:string;role:string;root:TransformNode;arms:TransformNode[];legs:TransformNode[];home:Vector3;phase:number;pose?:(t:number,moving?:boolean)=>void;setGait?:(pose:GaitPose|null)=>void;motionDiagnostics?:()=>{ankles:number[][];soles:number[][];knees:number[][];hip:number[];head:number[];angles:{hip:number;knee:number;roll:number;reach:number;clamped:boolean}[]};weapon?:TransformNode;setWeapon?:(drawn:boolean,guard?:boolean)=>void}
 export interface Ore {mesh:Mesh;taken:boolean}
 export interface Camp {obstacles:Obstacle[];people:Person[];ores:Ore[];fires:{mesh:Mesh;light:PointLight;base:Vector3}[];banners:Mesh[];hero:Person;animate:(t:number)=>void}
 let seed=1977;

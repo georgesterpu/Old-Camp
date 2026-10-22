@@ -1,8 +1,9 @@
-import {Scene,Mesh,MeshBuilder,VertexData,Vector3,Color3,StandardMaterial,Texture,TransformNode,Skeleton,Bone,Matrix,DynamicTexture,VertexBuffer} from '@babylonjs/core';
+import {Scene,Mesh,MeshBuilder,VertexData,Vector3,Color3,StandardMaterial,Texture,TransformNode,Skeleton,Bone,Matrix,Quaternion,DynamicTexture,VertexBuffer} from '@babylonjs/core';
 import data from '../assets/human.json';
 import skinURL from '../assets/source/male-skin.png';
 import type {SurfaceSet} from './surfaces';
 import type {Person} from './world';
+import {LEG,solveLeg,type GaitPose} from './gait';
 import {appearanceColors,normalizeAppearance,residentAppearance,type Appearance} from './appearance';
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
 export function createCharacterFactory(scene:Scene,surfaces:SurfaceSet){
@@ -15,15 +16,15 @@ export function createCharacterFactory(scene:Scene,surfaces:SurfaceSet){
   const root=new TransformNode(name,scene);root.position.set(x,0,z);
   const skeleton=new Skeleton(name+' human rig',name+' rig',scene);
   const bone=(n:string,parent:Bone|null,p:Vector3)=>new Bone(n,skeleton,parent,Matrix.Translation(p.x,p.y,p.z));
-  const hips=bone('pelvis',null,new Vector3(0,0,-.12));
-  const spine=bone('spine',hips,new Vector3(0,1.05,.12));
+  const hips=bone('pelvis',null,new Vector3(0,LEG.hipHeight,-.12));
+  const spine=bone('spine',hips,new Vector3(0,1.05-LEG.hipHeight,.12));
   const head=bone('head',spine,new Vector3(0,.43,.015));
-  const arms:Bone[]=[],elbows:Bone[]=[],legs:Bone[]=[],knees:Bone[]=[];
+  const arms:Bone[]=[],elbows:Bone[]=[],legs:Bone[]=[],knees:Bone[]=[],feet:Bone[]=[];
   for(const sign of [-1,1]){
    const arm=bone('upper arm '+sign,spine,new Vector3(sign*.19,.365,0));arms.push(arm);
    elbows.push(bone('elbow '+sign,arm,new Vector3(sign*.245,-.08,.015)));
-   const leg=bone('thigh '+sign,hips,new Vector3(sign*.095,.87,.12));legs.push(leg);
-   knees.push(bone('knee '+sign,leg,new Vector3(0,-.43,0)));
+   const leg=bone('thigh '+sign,hips,new Vector3(sign*LEG.hipWidth,0,.12));legs.push(leg);
+   const knee=bone('knee '+sign,leg,new Vector3(0,-LEG.upper,0));knees.push(knee);feet.push(bone('ankle '+sign,knee,new Vector3(0,-LEG.lower,0)));
   }
   const cloth=new StandardMaterial(name+' worn wool',scene);cloth.diffuseTexture=surfaces.fabric.color.clone();cloth.bumpTexture=surfaces.fabric.normal.clone();for(const t of [cloth.diffuseTexture,cloth.bumpTexture]){(t as Texture).uScale=8;(t as Texture).vScale=8;}cloth.specularColor=Color3.Black();
   const trousers=new StandardMaterial(name+' worn hide',scene);trousers.diffuseTexture=surfaces.leather.color;trousers.bumpTexture=surfaces.leather.normal;trousers.specularColor=new Color3(.035,.03,.025);
@@ -77,7 +78,7 @@ export function createCharacterFactory(scene:Scene,surfaces:SurfaceSet){
      let b1=hips,b2=spine,w=clamp((vy-.85)/.25);
      if(vy>1.46&&ax<.18){b1=spine;b2=head;w=clamp((vy-1.44)/.09)}
      else if(ax>.18&&vy>1.02){b1=spine;b2=arms[side];w=clamp((ax-.17)/.08);if(ax>.36){b1=arms[side];b2=elbows[side];w=clamp((ax-.37)/.13)}}
-     else if(vy<.87){b1=hips;b2=legs[side];w=clamp((.91-vy)/.15);if(vy<.53){b1=legs[side];b2=knees[side];w=clamp((.53-vy)/.15)}}
+     else if(vy<.87){b1=hips;b2=legs[side];w=clamp((.91-vy)/.15);if(vy<.53){b1=legs[side];b2=knees[side];w=clamp((.53-vy)/.15)}if(vy<.23){b1=knees[side];b2=feet[side];w=clamp((.23-vy)/.10)}}
      // Change the actual head surface while preserving its UVs and neck seam.
      if(vy>1.49&&ax<.13){
       const blend=clamp((vy-1.49)/.055),jaw=clamp((1.64-vy)/.11);
@@ -158,16 +159,40 @@ export function createCharacterFactory(scene:Scene,surfaces:SurfaceSet){
   const blade=MeshBuilder.CreateBox('tempered blade',{width:.055,height:.72,depth:.023},scene);blade.parent=weapon;blade.position.y=-.46;blade.material=steel;
   const cross=MeshBuilder.CreateBox('crossguard',{width:.23,height:.035,depth:.045},scene);cross.parent=weapon;cross.position.y=-.09;cross.material=steel;
   const grip=MeshBuilder.CreateCylinder('leather sword grip',{diameter:.045,height:.15,tessellation:10},scene);grip.parent=weapon;grip.material=trousers;
+  // Skin the belt so the pelvis can transfer weight without sliding through it.
+  belt.bakeTransformIntoVertices(Matrix.Scaling(belt.scaling.x,belt.scaling.y,belt.scaling.z).multiply(Matrix.Translation(0,.94,.005)));belt.position.setAll(0);belt.scaling.setAll(1);
+  const beltIndices:number[]=[],beltWeights:number[]=[];for(let i=0;i<belt.getTotalVertices();i++){beltIndices.push(hips.getIndex(),0,0,0);beltWeights.push(1,0,0,0)}belt.setVerticesData(VertexBuffer.MatricesIndicesKind,beltIndices);belt.setVerticesData(VertexBuffer.MatricesWeightsKind,beltWeights);belt.skeleton=skeleton;
   let wasDrawn=false;
   const setWeapon=(drawn:boolean,guarding=false)=>{if(drawn!==wasDrawn){if(drawn){weapon.attachToBone(elbows[1],skinnedMesh);weapon.position.set(.25,-.13,.035);weapon.rotation.set(-Math.PI/2,0,0)}else{weapon.detachFromBone();weapon.parent=root;weapon.position.set(-.2,.97,-.18);weapon.rotation.set(0,0,-.22)}wasDrawn=drawn}if(drawn)weapon.rotation.x=guarding?-.3:-Math.PI/2};
   const phase=(Math.abs(x*7+z*11)%31)*.73;
-  const person:Person={weapon,setWeapon,name,role,root,arms:limbNodes,legs:legNodes,home:root.position.clone(),phase,get appearance(){return {...appearance}},setAppearance:applyAppearance,pose:(t:number)=>{
+  let gait:GaitPose|null=null;
+  const legAngles=[solveLeg(0,-.77,0),solveLeg(0,-.77,0)];
+  const pelvisQ=Quaternion.Identity(),inversePelvis=Quaternion.Identity(),target=Vector3.Zero(),hipQ=Quaternion.Identity(),bendQ=Quaternion.Identity(),parentQ=Quaternion.Identity(),footQ=Quaternion.Identity();
+  const person:Person={weapon,setWeapon,name,role,root,arms:limbNodes,legs:legNodes,home:root.position.clone(),phase,get appearance(){return {...appearance}},setAppearance:applyAppearance,setGait:value=>{gait=value},motionDiagnostics:()=>{
+   root.computeWorldMatrix(true);skinnedMesh.computeWorldMatrix(true);skeleton.computeAbsoluteMatrices(true);return {ankles:feet.map(b=>b.getAbsolutePosition(skinnedMesh).asArray()),soles:feet.map(b=>b.getAbsolutePositionFromLocal(new Vector3(0,-LEG.ankle,0),skinnedMesh).asArray()),knees:knees.map(b=>b.getAbsolutePosition(skinnedMesh).asArray()),hip:hips.getAbsolutePosition(skinnedMesh).asArray(),head:head.getAbsolutePosition(skinnedMesh).asArray(),angles:legAngles.map(a=>({...a}))};
+  },pose:(t:number)=>{
+   Quaternion.RotationYawPitchRollToRef(gait?.pelvisYaw??0,0,gait?.pelvisRoll??0,pelvisQ);pelvisQ.conjugateToRef(inversePelvis);
+   hips.setPosition(new Vector3(gait?.pelvisX??0,LEG.hipHeight+(gait?.pelvisY??0),-.12));hips.setRotationQuaternion(pelvisQ);
    for(let i=0;i<2;i++){
     const a=limbNodes[i].rotation.x,l=legNodes[i].rotation.x;
-    arms[i].setRotation(new Vector3(a*.8,0,i===0?1.04:-1.04));elbows[i].setRotation(new Vector3(0,(i===0?1:-1)*(.12+Math.max(0,-a)*.4),0));
-    legs[i].setRotation(new Vector3(l,0,0));knees[i].setRotation(new Vector3(-Math.max(0,-l)*.95,0,0));
+    const elbow=wasDrawn&&i===1?.22+Math.max(0,-a)*.35:gait?.elbows[i]??(.12+Math.max(0,-a)*.4);
+    arms[i].setRotation(new Vector3(a*.8,0,i===0?1.04:-1.04));elbows[i].setRotation(new Vector3(0,(i===0?1:-1)*elbow,0));
+    if(gait){
+     const f=gait.feet[i];target.set(f.x-gait.pelvisX,f.y-LEG.hipHeight-gait.pelvisY,f.z+.12);target.rotateByQuaternionToRef(inversePelvis,target);target.x-=(i===0?-1:1)*LEG.hipWidth;target.z-=.12;
+     const angles=solveLeg(target.x,target.y,target.z);legAngles[i]=angles;
+     Quaternion.RotationAxisToRef(Vector3.Forward(),angles.roll,hipQ);Quaternion.RotationAxisToRef(Vector3.Right(),angles.hip,bendQ);hipQ.multiplyInPlace(bendQ);legs[i].setRotationQuaternion(hipQ);
+     Quaternion.RotationAxisToRef(Vector3.Right(),angles.knee,bendQ);knees[i].setRotationQuaternion(bendQ);
+     pelvisQ.multiplyToRef(hipQ,parentQ);parentQ.multiplyInPlace(bendQ);parentQ.conjugateInPlace();Quaternion.RotationYawPitchRollToRef(f.yaw,f.pitch,f.roll,footQ);parentQ.multiplyInPlace(footQ);feet[i].setRotationQuaternion(parentQ);
+    }else{
+     const knee=Math.max(0,-l)*.95;legs[i].setRotation(new Vector3(l,0,0));knees[i].setRotation(new Vector3(knee,0,0));feet[i].setRotation(new Vector3(-l-knee,0,0));
+    }
    }
-   spine.setRotation(new Vector3(Math.sin(t*1.7+phase)*.008,0,0));head.setRotation(new Vector3(0,Math.sin(t*.35+phase)*.045,0));
+   const lean=gait?.lean??0;
+   // The torso absorbs most of the leg suspension; keep the gaze steady.
+   spine.setPosition(new Vector3(0,1.05-LEG.hipHeight-(gait?.pelvisY??0)*.8,.12));
+   spine.setRotation(new Vector3(lean+Math.sin(t*1.7+phase)*.003*(1-(gait?.weight??0)),gait?.twist??0,-(gait?.pelvisRoll??0)*.8));
+   head.setRotation(new Vector3(-lean*.8,-(gait?.twist??0)*.8+Math.sin(t*.35+phase)*.02*(1-(gait?.weight??0)),-(gait?.pelvisRoll??0)*.2));
+   if(!wasDrawn){weapon.position.set(-.2+(gait?.pelvisX??0),.97+(gait?.pelvisY??0),-.18);weapon.rotation.set(0,gait?.pelvisYaw??0,-.22+(gait?.pelvisRoll??0))}
   }};person.pose!(0);return person;
  };
 }

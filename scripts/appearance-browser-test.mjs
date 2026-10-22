@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {writeFileSync} from 'node:fs';
+import {writeFileSync,mkdirSync} from 'node:fs';
+mkdirSync('.cache',{recursive:true});
 const pages=await(await fetch('http://127.0.0.1:9223/json/list')).json();
 const page=pages.find(p=>p.type==='page'&&p.url.includes('old-camp.html'));
 assert.ok(page,'Offline game tab exists');
@@ -17,16 +18,16 @@ await ready();
 if(process.argv.includes('--gallery')){
  for(const name of ['Thorus','Huno','Grim']){
   await evaluate(`campTest.previewAppearance(campTest.appearances().find(p=>p.name===${JSON.stringify(name)}).appearance);campTest.render()`);
-  await shot(`docs/appearance-${name.toLowerCase()}.png`);
+  await shot(`.cache/appearance-${name.toLowerCase()}.png`);
   await evaluate("document.getElementById('appearance-cancel').click()");
  }
  ws.close();process.exit(0);
 }
 if(process.argv.includes('--preview')){
  await evaluate("document.getElementById('appearance-start').click();campTest.render()");
- await shot('docs/appearance-editor.png');
+ await shot('.cache/appearance-editor.png');
  await evaluate("document.getElementById('appearance-portrait').click();campTest.render()");
- await shot('docs/appearance-face.png');
+ await shot('.cache/appearance-face.png');
  console.log(JSON.stringify(await evaluate('campTest.appearanceEditor()'),null,2));ws.close();process.exit(0);
 }
 const initial=await evaluate('campTest.appearances()');
@@ -38,8 +39,8 @@ const select=async(key,value)=>evaluate(`(()=>{const s=document.getElementById('
 await select('skin','deep');await select('hairStyle','mohawk');await select('hairColor','copper');await select('facialHair','beard');await select('face','broad');await select('nose','hooked');await select('mark','scar');await select('build','stocky');await select('outfit','guard');await select('clothColor','blue');await select('trouserColor','slate');
 const changed=(await evaluate('campTest.appearanceEditor()')).draft;
 assert.deepEqual(await evaluate("campTest.appearances().find(p=>p.name==='Nameless Hero').appearance"),original,'Preview does not change the live player');
-await shot('docs/appearance-editor.png');
-await evaluate("document.getElementById('appearance-portrait').click()");await shot('docs/appearance-face.png');
+await shot('.cache/appearance-editor.png');
+await evaluate("document.getElementById('appearance-portrait').click()");await shot('.cache/appearance-face.png');
 await evaluate("document.getElementById('appearance-save').click()");
 assert.deepEqual(await evaluate("campTest.appearances().find(p=>p.name==='Nameless Hero').appearance"),changed,'Apply updates the live player');
 assert.deepEqual(await evaluate("JSON.parse(localStorage.getItem('old-camp-progress')).appearance"),changed,'Apply persists the complete appearance');
@@ -74,7 +75,7 @@ const before=await evaluate('campTest.appearanceEditor()');
 for(let i=0;i<12;i++){await select('mark','freckles');await select('hairStyle','long');await select('outfit','guard');await select('mark','none');await select('hairStyle','cropped');await select('outfit','vest')}
 const after=await evaluate('campTest.appearanceEditor()');assert.equal(after.meshes,before.meshes,'Repeated edits do not leak meshes');assert.equal(after.materials,before.materials,'Repeated edits do not leak materials');
 await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
-await shot('docs/appearance-mobile.png');
+await shot('.cache/appearance-mobile.png');
 assert.equal(await evaluate("(()=>{const r=document.getElementById('appearance-save').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})()"),true,'Save action fits mobile viewport');
 await evaluate("document.getElementById('appearance-cancel').click()");
 await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});

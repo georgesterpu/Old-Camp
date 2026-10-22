@@ -35,6 +35,8 @@ for playing the built game. Normal editing and building require Bun only.
 | `src/terrain.ts` | Ground elevation, mountains, bridge walking height, grass |
 | `src/wilderness.ts` | Forest, river, mine, ruins, shrine, and landmark locations |
 | `src/characters.ts` | Human meshes, clothing, skeleton, poses, and swords |
+| `src/gait.ts` | Walk/run cadence, foot contacts, terrain sampling and leg IK |
+| `src/embedded-texture.ts` | Checked offline image decoding, upload and retry |
 | `src/appearance.ts` | Appearance choices, palettes, and stable resident identities |
 | `src/customization.ts` | Hero appearance controls and the isolated preview scene |
 | `src/wildlife.ts` | Ravens, deer, hares, butterflies, and their behavior |
@@ -74,22 +76,31 @@ used by `scripts/prepare-human.py` to regenerate `assets/human.json` from the
 original OBJ. It is not needed for ordinary game changes.
 
 The browser regression scripts require a separate Chrome DevTools session on
-port 9223; `bun test` does not. Run `node scripts/appearance-browser-test.mjs`
+port 9223; `bun test` does not. Run `bun scripts/appearance-browser-test.mjs`
 with an offline game tab opened using `?qa&still` to check customization.
 Launch test browsers with `--mute-audio`.
+Run `bun scripts/gait-browser-test.mjs` for foot contacts, head stability, sprint
+reach, sharp turns, reversals and turns in place. Screenshot outputs use `.cache`.
 
-Run `node scripts/campaign-browser-test.mjs` for the full three-chapter campaign
+`bun scripts/firefox-texture-browser-test.mjs` uses a separate Firefox profile
+launched with `--headless --no-remote --remote-debugging-port 9224
+--remote-allow-system-access`. It checks real ground pixels in both graphics
+modes, retries a deliberately failed image decode, and checks recovery when both
+attempts fail. The system-access flag is for Firefox's viewport automation in
+this dedicated test profile. It does not change the player's Firefox settings.
+
+Run `bun scripts/campaign-browser-test.mjs` for the full three-chapter campaign
 from a new journey. It accelerates travel but earns resources, gear and progress through
 actual actions, then checks the ending, failure/reload, backup recovery and controller UI.
 The package browser test accepts an optional file URL; by default it opens the extracted
 `.cache/package-check/Play Old Camp.html` with external network URLs blocked.
 
-Run `node scripts/escalation-browser-test.mjs` for the third chapter: real signal repairs,
+Run `bun scripts/escalation-browser-test.mjs` for the third chapter: real signal repairs,
 beacon defense through ordinary strikes, direct services, both charters, saves and mobile UI.
 The pure third-chapter rules live in `src/escalation.ts`; `scripts/escalation.test.ts` covers
 migration, atomic costs, siege failure/retry, recurring consequences and patrol shifts.
 
-Run `node scripts/colony-browser-test.mjs` for the mine-chapter playthrough.
+Run `bun scripts/colony-browser-test.mjs` for the mine-chapter playthrough.
 This script resets only the dedicated test browser's journey, supplies a completed
 tutorial fixture, and then uses the real gathering, trade, crafting and combat actions.
 `bun test` includes the pure economy, save and combat rules without needing a browser.

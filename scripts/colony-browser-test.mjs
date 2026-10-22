@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {writeFileSync} from 'node:fs';
+import {writeFileSync,mkdirSync} from 'node:fs';
+mkdirSync('.cache',{recursive:true});
 const pages=await(await fetch('http://127.0.0.1:9223/json/list')).json(),page=pages.find(p=>p.type==='page'&&p.url.includes('old-camp.html'));
 assert.ok(page,'Offline QA game tab');const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.addEventListener('open',r,{once:true}));let id=0;const pending=new Map(),errors=[];
 ws.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.id){pending.get(m.id)?.(m);pending.delete(m.id)}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text)});
@@ -9,7 +10,7 @@ async function ready(){for(let i=0;i<100;i++){if(await evaluate('!!window.campTe
 async function reload(){await evaluate('delete window.campTest;delete window.campDiagnostics');await send('Page.reload');await ready()}
 const click=async selector=>{assert.ok(await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`),'Control exists: '+selector);return evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`)};
 const state=()=>evaluate('campTest.colony()');
-const shot=async name=>{await evaluate('campTest.render()');const r=await send('Page.captureScreenshot',{format:'png'});writeFileSync(`docs/alpha2-${name}.png`,Buffer.from(r.data,'base64'))};
+const shot=async name=>{await evaluate('campTest.render()');const r=await send('Page.captureScreenshot',{format:'png'});writeFileSync(`.cache/alpha2-${name}.png`,Buffer.from(r.data,'base64'))};
 await send('Runtime.enable');await send('Page.enable');await evaluate('sessionStorage.clear()');await reload();await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 await click('#enter');await evaluate('campTest.reset();campTest.render()');
 assert.equal(await evaluate("document.querySelector('.alpha-stamp').textContent"),'RELEASE CANDIDATE 1 · A PLACE WORTH KEEPING');
